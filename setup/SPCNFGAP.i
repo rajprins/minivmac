@@ -192,10 +192,6 @@ LOCALPROC WriteAppSpecificCNFUDOSGoptions(void)
 		WriteDefineUimr("MyWindowScale", cur_MagFctr);
 	}
 
-	if (nanblnr != WantColorImage) {
-		WriteCompCondBool("UseColorImage", WantColorImage);
-	}
-
 	WriteCompCondBool("WantInitRunInBackground", WantInitBackground);
 	WriteCompCondBool("WantInitNotAutoSlow", ! WantInitAutoSlow);
 
@@ -207,10 +203,6 @@ LOCALPROC WriteAppSpecificCNFUDOSGoptions(void)
 		WriteUnsignedToOutput(CurInitSpeed - 1);
 	}
 	WriteEndDestFileLn();
-
-	if (WantScreenVSync) {
-		WriteDestFileLn("#define UseAGLdoublebuff 1");
-	}
 
 	if (WantGraphicsSwitching) {
 		WriteDestFileLn("#define WantGraphicsSwitching 1");
@@ -253,7 +245,4 @@ LOCALPROC WriteAppSpecificCNFUDOSGoptions(void)
 
 	WriteCompCondBool("NeedIntlChars",
 		(gbk_lang_eng != gbo_lang) || NeedIntl);
-	if (gbk_apifam_win == gbo_apifam) {
-		WriteCompCondBool("ItnlKyBdFix", ItnlKyBdFix);
-	}
 }

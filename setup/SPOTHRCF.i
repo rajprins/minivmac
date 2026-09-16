@@ -35,16 +35,6 @@ LOCALPROC WriteAppCNFUIPICcontents(void)
 		WriteConfigurationWarning();
 	--DestFileIndent;
 	WriteDestFileLn("*/");
-	switch (gbo_apifam) {
-		case gbk_apifam_dos:
-			WriteBlankLineToDestFile();
-			WriteDefineUimr("VESAHeight", 480);
-			WriteDefineUimr("VESAWidth", 640);
-			WriteDefineUimr("VESAMode", 0x101);
-			WriteDefineUimr("MouseSenX", 50);
-			WriteDefineUimr("MouseSenY", 50);
-			break;
-	}
 }
 
 
@@ -78,49 +68,7 @@ LOCALPROC WriteAppCNFUIOSGContents(void)
 {
 	WriteCommonCNFUIOSGContents();
 
-	{
-		char *s = nullpr;
-
-		switch (gbo_apifam) {
-			case gbk_apifam_mac:
-				s = "MAC";
-				break;
-			case gbk_apifam_osx:
-				s = "OSX";
-				break;
-			case gbk_apifam_win:
-				s = "WIN";
-				break;
-			case gbk_apifam_xwn:
-				s = "XWN";
-				break;
-			case gbk_apifam_dos:
-				s = "DOS";
-				break;
-			case gbk_apifam_nds:
-				s = "NDS";
-				break;
-			case gbk_apifam_gtk:
-				s = "GTK";
-				break;
-			case gbk_apifam_sdl:
-			case gbk_apifam_sd2:
-			case gbk_apifam_sd3:
-				s = "SDL";
-				break;
-			case gbk_apifam_cco:
-				s = "CCO";
-				break;
-		}
-
-		if (nullpr != s) {
-			WriteBgnDestFileLn();
-			WriteCStrToDestFile("#define WantOSGLU");
-			WriteCStrToDestFile(s);
-			WriteCStrToDestFile(" 1");
-			WriteEndDestFileLn();
-		}
-	}
+	WriteDestFileLn("#define WantOSGLUCCO 1");
 
 	WriteBlankLineToDestFile();
 	WriteCDefQuote("kStrAppName", WriteStrAppUnabrevName);
@@ -629,32 +577,6 @@ LOCALPROC WriteAppSTRCONSTcontents(void)
 	WriteEndDestFileLn();
 }
 
-LOCALPROC WriteAppSOUNDGLUcontents(void)
-{
-	char *s;
-
-	switch (gbo_sndapi) {
-		case gbk_sndapi_alsa:
-			s = "ALSA";
-			break;
-		case gbk_sndapi_ddsp:
-			s = "DDSP";
-			break;
-		default:
-			s = "???";
-			break;
-	}
-
-	WriteBgnDestFileLn();
-	WriteCStrToDestFile("#include ");
-	WriteQuoteToDestFile();
-	WriteCStrToDestFile("SGLU");
-	WriteCStrToDestFile(s);
-	WriteCStrToDestFile(".h");
-	WriteQuoteToDestFile();
-	WriteEndDestFileLn();
-}
-
 LOCALPROC WriteAppLOCALTLKcontents(void)
 {
 	char *s;
@@ -739,40 +661,13 @@ LOCALPROC WriteAppCNFUDPICcontents(void)
 	}
 	WriteEndDestFileLn();
 
-	if (gbk_ide_mvc == cur_ide) {
-		if (gbk_cpufam_x64 == gbo_cpufam) {
-			WriteBlankLineToDestFile();
-			WriteDestFileLn("#define r_pc_p \"r15\"");
-			WriteDestFileLn("#define r_MaxCyclesToGo \"r14\"");
-			WriteDestFileLn("#define r_pc_pHi \"r13\"");
-		}
-
-		if ((gbk_cpufam_ppc == gbo_cpufam)
-			|| (gbk_cpufam_p64 == gbo_cpufam))
-		{
-			WriteBlankLineToDestFile();
-			WriteDestFileLn("#define r_regs \"r14\"");
-			WriteDestFileLn("#define r_pc_p \"r15\"");
-			WriteDestFileLn("#define r_MaxCyclesToGo \"r16\"");
-			WriteDestFileLn("#define r_pc_pHi \"r17\"");
-		}
-
-		if (gbk_cpufam_arm == gbo_cpufam) {
-			WriteBlankLineToDestFile();
-			WriteDestFileLn("#define r_regs \"r4\"");
-			WriteDestFileLn("#define r_pc_p \"r5\"");
-			if (gbk_targ_wcar != cur_targ) {
-				WriteDestFileLn("#define r_MaxCyclesToGo \"r6\"");
-				WriteDestFileLn("#define r_pc_pHi \"r7\"");
-			}
-		}
-	} else if (gbk_ide_xcd == cur_ide) {
-		if (CurOfficialBin) {
-			if (gbk_cpufam_a64 == gbo_cpufam) {
-				WriteBlankLineToDestFile();
-				WriteDestFileLn("#define r_pc_p \"x15\"");
-			}
-		}
+	if (CurOfficialBin) {
+		/*
+			As with the other arm64 code generation hints, this is
+			still gated on -ob. See the note in WRCNFGGL.i.
+		*/
+		WriteBlankLineToDestFile();
+		WriteDestFileLn("#define r_pc_p \"x15\"");
 	}
 
 	WriteBlankLineToDestFile();
@@ -822,14 +717,8 @@ LOCALPROC WriteAppCNFUDPICcontents(void)
 		WriteDestFileLn("#define MaxATTListN 16");
 	}
 
-	WriteCompCondBool("IncludeExtnPbufs",
-		(! WantMinExtn) && (gbk_apifam_gtk != gbo_apifam)
-		&& (gbk_apifam_nds != gbo_apifam));
-	WriteCompCondBool("IncludeExtnHostTextClipExchange",
-		(! WantMinExtn) && (gbk_apifam_gtk != gbo_apifam)
-		&& (gbk_apifam_sdl != gbo_apifam)
-		&& (gbk_apifam_nds != gbo_apifam)
-		&& (gbk_apifam_dos != gbo_apifam));
+	WriteCompCondBool("IncludeExtnPbufs", ! WantMinExtn);
+	WriteCompCondBool("IncludeExtnHostTextClipExchange", ! WantMinExtn);
 
 	WriteBlankLineToDestFile();
 
@@ -1021,17 +910,15 @@ LOCALPROC WriteAppCNFUDPICcontents(void)
 
 LOCALPROC WriteAppSpecificConfigFiles(void)
 {
-	if (gbk_ide_prt != cur_ide) {
-		WriteADstFile1("my_config_d",
-			"CNFUIOSG", ".h", nullpr,
-			WriteAppCNFUIOSGContents);
-		WriteADstFile1("my_config_d",
-			"CNFUIALL", ".h", nullpr,
-			WriteAppCNFUIALLContents);
-		WriteADstFile1("my_config_d",
-			"CNFUIPIC", ".h", nullpr,
-			WriteAppCNFUIPICcontents);
-	}
+	WriteADstFile1("my_config_d",
+		"CNFUIOSG", ".h", nullpr,
+		WriteAppCNFUIOSGContents);
+	WriteADstFile1("my_config_d",
+		"CNFUIALL", ".h", nullpr,
+		WriteAppCNFUIALLContents);
+	WriteADstFile1("my_config_d",
+		"CNFUIPIC", ".h", nullpr,
+		WriteAppCNFUIPICcontents);
 
 	WriteADstFile1("my_config_d",
 		"CNFUDOSG", ".h", nullpr,
@@ -1046,12 +933,6 @@ LOCALPROC WriteAppSpecificConfigFiles(void)
 	WriteADstFile1("my_config_d",
 		"STRCONST", ".h", "Language Configuration file",
 		WriteAppSTRCONSTcontents);
-
-	if (gbk_sndapi_none != gbo_sndapi) {
-		WriteADstFile1("my_config_d",
-			"SOUNDGLU", ".h", "Sound Configuration file",
-			WriteAppSOUNDGLUcontents);
-	}
 
 	if (gbo_lto != gbk_lto_none) {
 		WriteADstFile1("my_config_d",

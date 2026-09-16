@@ -110,15 +110,6 @@ LOCALFUNC tMyErr ChooseModel(void)
 
 	cur_mIIorIIX = (gbk_mdl_II == cur_mdl) || (gbk_mdl_IIx == cur_mdl);
 
-#if 0
-	if (cur_mIIorIIX) {
-		if (gbk_cpufam_68k == gbo_cpufam) {
-			err = ReportParseFailure(
-				"Mac II emulation is not supported on Macintosh 680x0");
-		}
-	}
-#endif
-
 	return kMyErr_noErr;
 }
 
@@ -329,7 +320,7 @@ LOCALFUNC blnr dfo_InitFullScreen(void)
 {
 	blnr v;
 
-	v = gbk_targfam_wnce == gbo_targfam;
+	v = falseblnr;
 
 	return v;
 }
@@ -342,13 +333,6 @@ LOCALFUNC tMyErr ChooseInitFullScreen(void)
 
 	if (nanblnr == WantInitFullScreen) {
 		WantInitFullScreen = dfo_InitFullScreen();
-	} else {
-		if (! WantInitFullScreen) {
-			if (gbk_targ_wcar == cur_targ) {
-				err = ReportParseFailure(
-					"-fullscreen 0 is not supported for -t wcar");
-			}
-		}
 	}
 
 	return err;
@@ -382,13 +366,7 @@ LOCALFUNC blnr dfo_VarFullScreen(void)
 {
 	blnr v;
 
-	if ((gbk_apifam_gtk == gbo_apifam)
-		|| (gbk_targfam_wnce == gbo_targfam))
-	{
-		v = falseblnr;
-	} else {
-		v = trueblnr;
-	}
+	v = trueblnr;
 
 	return v;
 }
@@ -401,13 +379,6 @@ LOCALFUNC tMyErr ChooseVarFullScreen(void)
 
 	if (nanblnr == WantVarFullScreen) {
 		WantVarFullScreen = dfo_VarFullScreen();
-	} else {
-		if (WantVarFullScreen) {
-			if (gbk_targ_wcar == cur_targ) {
-				err = ReportParseFailure(
-					"-var-fullscreen is not supported for -t wcar");
-			}
-		}
 	}
 
 	return err;
@@ -440,12 +411,7 @@ LOCALFUNC uimr dfo_MagFctr(void)
 {
 	uimr v;
 
-	if (gbk_apifam_gtk == gbo_apifam) {
-		/* temporary, until implemented */
-		v = 1;
-	} else {
-		v = 2;
-	}
+	v = 2;
 
 	return v;
 }
@@ -537,18 +503,7 @@ LOCALFUNC blnr dfo_SoundEnabled(void)
 {
 	blnr v;
 
-	v = (gbk_apifam_mac == gbo_apifam)
-		|| (gbk_apifam_osx == gbo_apifam)
-		|| (gbk_apifam_win == gbo_apifam)
-		|| (gbk_apifam_sdl == gbo_apifam)
-		|| (gbk_apifam_sd2 == gbo_apifam)
-		|| (gbk_apifam_sd3 == gbo_apifam)
-		|| (gbk_apifam_cco == gbo_apifam)
-		|| (gbk_apifam_prt == gbo_apifam)
-		|| ((gbk_apifam_xwn == gbo_apifam)
-			&& ((gbk_targfam_linx == gbo_targfam)
-				|| (gbk_targfam_fbsd == gbo_targfam)
-				|| (gbk_targfam_nbsd == gbo_targfam)));
+	v = trueblnr; /* Core Audio is always available */
 
 	return v;
 }
@@ -568,82 +523,12 @@ LOCALPROC WrtOptSoundOption(void)
 }
 
 
-/* option: sound api */
-
-enum {
-	gbk_sndapi_none,
-	gbk_sndapi_alsa,
-	gbk_sndapi_ddsp,
-	kNumSndApiLevels
-};
-
-LOCALVAR int gbo_sndapi;
-LOCALVAR ui3r olv_sndapi;
-
-LOCALPROC ResetSndApiOption(void)
-{
-	gbo_sndapi = kListOptionAuto;
-	olv_sndapi = 0;
-}
-
-LOCALFUNC char * GetSndApiName(int i)
-{
-	char *s;
-
-	switch (i) {
-		case gbk_sndapi_none:
-			s = "none";
-			break;
-		case gbk_sndapi_alsa:
-			s = "alsa";
-			break;
-		case gbk_sndapi_ddsp:
-			s = "ddsp";
-			break;
-		default:
-			s = "(unknown sound api)";
-			break;
-	}
-	return s;
-}
-
-LOCALFUNC tMyErr TryAsSndApiOptionNot(void)
-{
-	return FindNamedOption("-snd-api",
-		kNumSndApiLevels, GetSndApiName, &gbo_sndapi, &olv_sndapi);
-}
-
-LOCALFUNC int dfo_sndapi(void)
-{
-	int v;
-
-	if (! MySoundEnabled) {
-		v = gbk_sndapi_none;
-	} else if (gbk_apifam_xwn != gbo_apifam) {
-		v = gbk_sndapi_none;
-	} else if (gbo_targfam == gbk_targfam_linx) {
-		v = gbk_sndapi_alsa;
-	} else {
-		v = gbk_sndapi_ddsp;
-	}
-
-	return v;
-}
-
-LOCALFUNC tMyErr ChooseSndApiOption(void)
-{
-	if (kListOptionAuto == gbo_sndapi) {
-		gbo_sndapi = dfo_sndapi();
-	}
-
-	return kMyErr_noErr;
-}
-
-LOCALPROC WrtOptSndApiOption(void)
-{
-	WrtOptNamedOption("-snd-api", GetSndApiName,
-		gbo_sndapi, dfo_sndapi());
-}
+/*
+	The "-snd-api" option chose between ALSA and /dev/dsp, and only
+	ever applied to the X11 backend. Cocoa always uses Core Audio,
+	so the option, and src/SGLUALSA.h and src/SGLUDDSP.h with it,
+	are gone.
+*/
 
 
 /* option: sound sample size */
@@ -666,11 +551,7 @@ LOCALFUNC uimr dfo_SoundSampSz(void)
 {
 	uimr v;
 
-	if (gbk_sndapi_ddsp == gbo_sndapi) {
-		v = 4;
-	} else {
-		v = 3;
-	}
+	v = 3; /* 4 was only for the /dev/dsp backend */
 
 	return v;
 }
@@ -1402,52 +1283,10 @@ LOCALPROC WrtOptAltKeysMode(void)
 }
 
 
-/* option: ItnlKyBdFix */
-
-LOCALVAR blnr ItnlKyBdFix;
-LOCALVAR ui3r olv_ItnlKyBdFix;
-
-LOCALPROC ResetItnlKyBdFixOption(void)
-{
-	ItnlKyBdFix = nanblnr;
-}
-
-LOCALFUNC tMyErr TryAsItnlKyBdFixNot(void)
-{
-	return BooleanTryAsOptionNot("-ikb",
-		&ItnlKyBdFix, &olv_ItnlKyBdFix);
-}
-
-LOCALFUNC blnr dfo_ItnlKyBdFix(void)
-{
-	blnr v;
-
-	v = (gbk_apifam_win == gbo_apifam);
-
-	return v;
-}
-
-LOCALFUNC tMyErr ChooseItnlKyBdFix(void)
-{
-	tMyErr err = kMyErr_noErr;
-
-	if (nanblnr == ItnlKyBdFix) {
-		ItnlKyBdFix = dfo_ItnlKyBdFix();
-	} else {
-		if (ItnlKyBdFix) {
-			if (gbk_apifam_win != gbo_apifam) {
-				err = ReportParseFailure("-ikb is only for Windows");
-			}
-		}
-	}
-
-	return err;
-}
-
-LOCALPROC WrtOptItnlKyBdFix(void)
-{
-	WrtOptBooleanOption("-ikb", ItnlKyBdFix, dfo_ItnlKyBdFix());
-}
+/*
+	The "-ikb" international keyboard fix was only for the Windows
+	backend, so it is gone.
+*/
 
 
 /* option: LocalTalk emulation */
@@ -1471,20 +1310,6 @@ LOCALFUNC tMyErr ChooseLocalTalk(void)
 	tMyErr err;
 
 	err = kMyErr_noErr;
-
-	if (WantLocalTalk) {
-		if ((gbk_apifam_cco != gbo_apifam)
-			&& (gbk_apifam_osx != gbo_apifam)
-			&& (gbk_apifam_win != gbo_apifam)
-			&& ! ((gbk_apifam_xwn == gbo_apifam)
-				&& ((gbk_targfam_linx == gbo_targfam)
-					|| (gbk_targfam_fbsd == gbo_targfam))))
-		{
-			err = ReportParseFailure(
-				"-lt is so far only implemented for"
-				" OS X, Windows, and Linux");
-		}
-	}
 
 	return err;
 }
@@ -1570,31 +1395,7 @@ LOCALFUNC tMyErr ChooseLTOOption(void)
 		}
 	}
 
-	if (kMyErr_noErr == err) {
-		switch (gbo_lto) {
-			case gbk_lto_bpf:
-				if ((gbk_apifam_osx != gbo_apifam)
-					&& (gbk_apifam_cco != gbo_apifam))
-				{
-					err = ReportParseFailure(
-						"-lto bpf is so far only implemented for OS X");
-				}
-				break;
-			case gbk_lto_udp:
-				if ((gbk_apifam_cco != gbo_apifam)
-					&& (gbk_apifam_osx != gbo_apifam)
-					&& (gbk_apifam_win != gbo_apifam)
-					&& ! ((gbk_apifam_xwn == gbo_apifam)
-						&& ((gbk_targfam_linx == gbo_targfam)
-							|| (gbk_targfam_fbsd == gbo_targfam))))
-				{
-					err = ReportParseFailure(
-						"-lto udp is so far only implemented for"
-						" OS X, Windows, and Linux");
-				}
-				break;
-		}
-	}
+	/* both bpf and udp are supported on Cocoa */
 
 	return err;
 }
@@ -1976,12 +1777,6 @@ LOCALFUNC int dfo_msz(void)
 			v = gbk_msz_4M;
 			break;
 	}
-	if (gbk_targfam_lnds == gbo_targfam) {
-		if (v > gbk_msz_2M) {
-			v = gbk_msz_2M;
-		}
-	}
-
 	return v;
 }
 
@@ -2875,7 +2670,7 @@ LOCALFUNC blnr dfo_MouseMotion(void)
 {
 	blnr v;
 
-	v = (gbk_apifam_gtk != gbo_apifam);
+	v = trueblnr;
 
 	return v;
 }
@@ -3032,66 +2827,10 @@ LOCALPROC WrtOptEnblCtrlKtg(void)
 }
 
 
-/* option: Want Color Image */
-
-LOCALVAR blnr WantColorImage;
-LOCALVAR ui3r olv_ColorImage;
-
-LOCALPROC ResetWantColorImage(void)
-{
-	WantColorImage = nanblnr;
-	olv_ColorImage = 0;
-}
-
-LOCALFUNC tMyErr TryAsWantColorImageNot(void)
-{
-	return BooleanTryAsOptionNot("-ci",
-		&WantColorImage, &olv_ColorImage);
-}
-
-LOCALFUNC blnr dfo_ColorImage(void)
-{
-	blnr v;
-
-	if (gbk_apifam_xwn == gbo_apifam) {
-		v = trueblnr;
-	} else {
-		/* leave as default */
-		v = nanblnr;
-	}
-
-	return v;
-}
-
-LOCALFUNC tMyErr ChooseWantColorImage(void)
-{
-	tMyErr err;
-
-	err = kMyErr_noErr;
-
-	if (nanblnr == WantColorImage) {
-		WantColorImage = dfo_ColorImage();
-	} else {
-		if (gbk_apifam_xwn != gbo_apifam) {
-			err = ReportParseFailure(
-				"-ci is only for -api xwn");
-		} else
-		if ((! WantColorImage) && (cur_ScrnDpth != 0)) {
-			err = ReportParseFailure(
-				"-ci 0 requires -depth 0");
-		} else
-		{
-			/* ok */
-		}
-	}
-
-	return err;
-}
-
-LOCALPROC WrtOptColorImage(void)
-{
-	WrtOptBooleanOption("-ci", WantColorImage, dfo_ColorImage());
-}
+/*
+	The "-ci" colour image option was only for the X11 backend, so
+	it is gone.
+*/
 
 
 /* option: Alternate Happy Mac Icons */
@@ -3490,46 +3229,10 @@ LOCALPROC WrtOptAbnormalReports(void)
 }
 
 
-/* option: Screen VSync */
-
-LOCALVAR blnr WantScreenVSync;
-LOCALVAR ui3r olv_ScreenVSync;
-
-LOCALPROC ResetScreenVSync(void)
-{
-	WantScreenVSync = nanblnr;
-	olv_ScreenVSync = 0;
-}
-
-LOCALFUNC tMyErr TryAsScreenVSyncNot(void)
-{
-	return BooleanTryAsOptionNot("-vsync",
-		&WantScreenVSync, &olv_ScreenVSync);
-}
-
-#define dfo_ScreenVSync() falseblnr
-
-LOCALFUNC tMyErr ChooseScreenVSync(void)
-{
-	tMyErr err;
-
-	err = kMyErr_noErr;
-	if (nanblnr == WantScreenVSync) {
-		WantScreenVSync = dfo_ScreenVSync();
-	} else {
-		if (WantScreenVSync && (gbk_apifam_osx != gbo_apifam)) {
-			err = ReportParseFailure(
-				"-vsync is so far only implemented for OS X");
-		}
-	}
-
-	return err;
-}
-
-LOCALPROC WrtOptScreenVSync(void)
-{
-	WrtOptBooleanOption("-vsync", WantScreenVSync, dfo_ScreenVSync());
-}
+/*
+	The "-vsync" option emitted UseAGLdoublebuff, which only the old
+	Carbon/AGL backend (src/OSGLUOSX.c) ever read. It is gone.
+*/
 
 
 /* option: Graphics Switching */
@@ -3559,10 +3262,7 @@ LOCALFUNC tMyErr ChooseGraphicsSwitching(void)
 	if (nanblnr == WantGraphicsSwitching) {
 		WantGraphicsSwitching = dfo_GraphicsSwitching();
 	} else {
-		if (WantGraphicsSwitching && (gbk_apifam_cco != gbo_apifam)) {
-			err = ReportParseFailure(
-				"-gse is so far only implemented for cocoa on OS X");
-		}
+		/* ok */
 	}
 
 	return err;
@@ -3596,7 +3296,7 @@ LOCALFUNC blnr dfo_Signing(void)
 {
 	blnr v;
 
-	v = (gbk_apifam_cco == gbo_apifam);
+	v = trueblnr;
 
 	return v;
 }
@@ -3609,10 +3309,7 @@ LOCALFUNC tMyErr ChooseSigning(void)
 	if (nanblnr == WantSigning) {
 		WantSigning = dfo_Signing();
 	} else {
-		if (WantSigning && (gbk_apifam_cco != gbo_apifam)) {
-			err = ReportParseFailure(
-				"-sgn is so far only implemented for cocoa on OS X");
-		}
+		/* ok */
 	}
 
 	return err;
@@ -3653,10 +3350,6 @@ LOCALFUNC tMyErr ChooseSandbox(void)
 		WantSandbox = dfo_Sandbox();
 	} else {
 		if (WantSandbox) {
-			if (gbk_apifam_cco != gbo_apifam) {
-				err = ReportParseFailure("-sbx"
-					" is so far only implemented for cocoa on OS X");
-			} else
 			if (! WantSigning) {
 				err = ReportParseFailure("-sbx"
 					" requires -sgn 1");
@@ -3870,7 +3563,6 @@ LOCALPROC SPResetCommandLineParameters(void)
 	ResetMagFctrOption();
 	ResetInitMagnify();
 	ResetSoundOption();
-	ResetSndApiOption();
 	ResetSoundSampSzOption();
 	ResetNumDrivesOption();
 	ResetSonySupportTags();
@@ -3883,7 +3575,6 @@ LOCALPROC SPResetCommandLineParameters(void)
 	ResetKeyMapOption();
 	ResetEKTMapOption();
 	ResetAltKeysMode();
-	ResetItnlKyBdFixOption();
 	ResetLocalTalk();
 	ResetLTOOption();
 	ResetInitSpeedOption();
@@ -3914,7 +3605,6 @@ LOCALPROC SPResetCommandLineParameters(void)
 	ResetEnblCtrlInt();
 	ResetEnblCtrlRst();
 	ResetEnblCtrlKtg();
-	ResetWantColorImage();
 	ResetAltHappyMacOption();
 	ResetRomSizeOption();
 	ResetCheckRomCheckSum();
@@ -3923,7 +3613,6 @@ LOCALPROC SPResetCommandLineParameters(void)
 	ResetWantDisasm();
 	ResetDbgLogHAVE();
 	ResetAbnormalReports();
-	ResetScreenVSync();
 	ResetGraphicsSwitching();
 	ResetSigning();
 	ResetSandbox();
@@ -3942,7 +3631,6 @@ LOCALFUNC tMyErr TryAsSPOptionNot(void)
 	if (kMyErrNoMatch == (err = TryAsMagFctrOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsInitMagnifyNot()))
 	if (kMyErrNoMatch == (err = TryAsSoundOptionNot()))
-	if (kMyErrNoMatch == (err = TryAsSndApiOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsSoundSampSzOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsNumDrivesOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsSonySupportTagsNot()))
@@ -3955,7 +3643,6 @@ LOCALFUNC tMyErr TryAsSPOptionNot(void)
 	if (kMyErrNoMatch == (err = TryAsKeyMapOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsEKTMapOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsAltKeysModeNot()))
-	if (kMyErrNoMatch == (err = TryAsItnlKyBdFixNot()))
 	if (kMyErrNoMatch == (err = TryAsLocalTalkNot()))
 	if (kMyErrNoMatch == (err = TryAsLTOOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsInitSpeedOptionNot()))
@@ -3986,7 +3673,6 @@ LOCALFUNC tMyErr TryAsSPOptionNot(void)
 	if (kMyErrNoMatch == (err = TryAsEnblCtrlIntNot()))
 	if (kMyErrNoMatch == (err = TryAsEnblCtrlRstNot()))
 	if (kMyErrNoMatch == (err = TryAsEnblCtrlKtgNot()))
-	if (kMyErrNoMatch == (err = TryAsWantColorImageNot()))
 	if (kMyErrNoMatch == (err = TryAsAltHappyMacOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsRomSizeOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsCheckRomCheckSumNot()))
@@ -3995,7 +3681,6 @@ LOCALFUNC tMyErr TryAsSPOptionNot(void)
 	if (kMyErrNoMatch == (err = TryAsWantDisasmNot()))
 	if (kMyErrNoMatch == (err = TryAsDbgLogHAVENot()))
 	if (kMyErrNoMatch == (err = TryAsAbnormalReportsNot()))
-	if (kMyErrNoMatch == (err = TryAsScreenVSyncNot()))
 	if (kMyErrNoMatch == (err = TryAsGraphicsSwitchingNot()))
 	if (kMyErrNoMatch == (err = TryAsSigningNot()))
 	if (kMyErrNoMatch == (err = TryAsSandboxNot()))
@@ -4018,7 +3703,6 @@ LOCALFUNC tMyErr AutoChooseSPSettings(void)
 	if (kMyErr_noErr == (err = ChooseMagFctr()))
 	if (kMyErr_noErr == (err = ChooseInitMagnify()))
 	if (kMyErr_noErr == (err = ChooseSoundEnabled()))
-	if (kMyErr_noErr == (err = ChooseSndApiOption()))
 	if (kMyErr_noErr == (err = ChooseSoundSampSz()))
 	if (kMyErr_noErr == (err = ChooseNumDrives()))
 	if (kMyErr_noErr == (err = ChooseSonySupportTags()))
@@ -4031,7 +3715,6 @@ LOCALFUNC tMyErr AutoChooseSPSettings(void)
 	if (kMyErr_noErr == (err = ChooseKeyMap()))
 	if (kMyErr_noErr == (err = ChooseEKTMap()))
 	if (kMyErr_noErr == (err = ChooseAltKeysMode()))
-	if (kMyErr_noErr == (err = ChooseItnlKyBdFix()))
 	if (kMyErr_noErr == (err = ChooseLocalTalk()))
 	if (kMyErr_noErr == (err = ChooseLTOOption()))
 	if (kMyErr_noErr == (err = ChooseInitSpeed()))
@@ -4063,7 +3746,6 @@ LOCALFUNC tMyErr AutoChooseSPSettings(void)
 	if (kMyErr_noErr == (err = ChooseEnblCtrlInt()))
 	if (kMyErr_noErr == (err = ChooseEnblCtrlRst()))
 	if (kMyErr_noErr == (err = ChooseEnblCtrlKtg()))
-	if (kMyErr_noErr == (err = ChooseWantColorImage()))
 	if (kMyErr_noErr == (err = ChooseAltHappyMac()))
 	if (kMyErr_noErr == (err = ChooseRomSize()))
 	if (kMyErr_noErr == (err = ChooseCheckRomCheckSum()))
@@ -4073,7 +3755,6 @@ LOCALFUNC tMyErr AutoChooseSPSettings(void)
 	if (kMyErr_noErr == (err = ChooseWantDisasm()))
 	if (kMyErr_noErr == (err = ChooseDbgLogHAVE()))
 	if (kMyErr_noErr == (err = ChooseAbnormalReports()))
-	if (kMyErr_noErr == (err = ChooseScreenVSync()))
 	if (kMyErr_noErr == (err = ChooseGraphicsSwitching()))
 	if (kMyErr_noErr == (err = ChooseSigning()))
 	if (kMyErr_noErr == (err = ChooseSandbox()))
@@ -4100,7 +3781,6 @@ LOCALPROC WrtOptSPSettings(void)
 	WrtOptMagFctrOption();
 	WrtOptInitMagnify();
 	WrtOptSoundOption();
-	WrtOptSndApiOption();
 	WrtOptSoundSampSzOption();
 	WrtOptNumDrivesOption();
 	WrtOptSonySupportTags();
@@ -4113,7 +3793,6 @@ LOCALPROC WrtOptSPSettings(void)
 	WrtOptKeyMap();
 	WrtOptEKTMap();
 	WrtOptAltKeysMode();
-	WrtOptItnlKyBdFix();
 	WrtOptLocalTalk();
 	WrtOptLTOOption();
 	WrtOptInitSpeedOption();
@@ -4144,7 +3823,6 @@ LOCALPROC WrtOptSPSettings(void)
 	WrtOptEnblCtrlInt();
 	WrtOptEnblCtrlRst();
 	WrtOptEnblCtrlKtg();
-	WrtOptColorImage();
 	WrtOptAltHappyMac();
 	WrtOptRomSize();
 	WrtOptCheckRomCheckSum();
@@ -4153,7 +3831,6 @@ LOCALPROC WrtOptSPSettings(void)
 	WrtOptWantDisasmNot();
 	WrtOptDbgLogHAVE();
 	WrtOptAbnormalReports();
-	WrtOptScreenVSync();
 	WrtOptGraphicsSwitching();
 	WrtOptSigning();
 	WrtOptSandbox();

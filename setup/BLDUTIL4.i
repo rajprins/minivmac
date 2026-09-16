@@ -17,89 +17,17 @@
 	BuiLD system UTILities part 4
 */
 
-LOCALPROC WriteOutDummyContents(void)
-{
-	WriteDestFileLn(
-		"This file is here because some archive extraction");
-	WriteDestFileLn("software will not create an empty directory.");
-}
-
 LOCALPROC WriteMakeOutputDirectories(void)
 {
-	if ((gbk_ide_xcd == cur_ide) && (! UseCmndLine)) {
-	} else if (gbk_ide_mw8 == cur_ide) {
-	} else {
-		WriteSectionCommentDestFile("make output directory");
-
-		MakeSubDirectory("my_obj_d", "my_project_d", obj_d_name, "");
-
-		WriteADstFile1("my_obj_d",
-			"dummy", ".txt", "Dummy",
-			WriteOutDummyContents);
-	}
+	/*
+		Xcode creates its own build directory, so there is nothing
+		to make here.
+	*/
 }
 
 LOCALPROC WriteIdeSpecificFiles(void)
 {
-	switch (cur_ide) {
-		case gbk_ide_mpw:
-			WriteMPWSpecificFiles();
-			break;
-		case gbk_ide_mvc:
-			WriteMVCSpecificFiles();
-			break;
-		case gbk_ide_bgc:
-		case gbk_ide_cyg:
-		case gbk_ide_mgw:
-		case gbk_ide_dkp:
-			WriteBashGccSpecificFiles();
-			break;
-		case gbk_ide_mw8:
-			WriteMetrowerksSpecificFiles();
-			break;
-		case gbk_ide_snc:
-			WriteSncSpecificFiles();
-			break;
-		case gbk_ide_msv:
-			WriteMsvSpecificFiles();
-			break;
-		case gbk_ide_lcc:
-			if (UseCmndLine) {
-				WriteLccW32clSpecificFiles();
-			} else {
-				WriteLccW32SpecificFiles();
-			}
-			break;
-		case gbk_ide_dvc:
-			if (UseCmndLine) {
-				WriteBashGccSpecificFiles();
-			} else {
-				WriteDevCSpecificFiles();
-			}
-			break;
-		case gbk_ide_xcd:
-			if (UseCmndLine) {
-				WriteBashGccSpecificFiles();
-			} else {
-				WriteXCDSpecificFiles();
-			}
-			break;
-		case gbk_ide_dmc:
-			WriteDMCSpecificFiles();
-			break;
-		case gbk_ide_plc:
-			if (UseCmndLine) {
-				WritePLCclSpecificFiles();
-			} else {
-				WritePLCSpecificFiles();
-			}
-			break;
-		case gbk_ide_ccc:
-			WriteCccSpecificFiles();
-			break;
-		default:
-			break;
-	}
+	WriteXCDSpecificFiles();
 }
 
 LOCALPROC ResetAllCommandLineParameters(void)
@@ -185,41 +113,9 @@ LOCALFUNC tMyErr ProcessCommandLineArguments(void)
 	return err;
 }
 
-LOCALPROC DoDocTypeAddToMainRC(void)
-{
-	WriteBgnDestFileLn();
-	WriteUnsignedToOutput(256 + DocTypeCounter);
-	WriteCStrToDestFile(
-		"                     ICON    DISCARDABLE     ");
-	WriteQuoteToDestFile();
-	WriteDocTypeIconFileName();
-	WriteQuoteToDestFile();
-	WriteEndDestFileLn();
-}
-
-LOCALPROC WriteWinMainRCcontents(void)
-{
-	DoAllDocTypesWithSetup(DoDocTypeAddToMainRC);
-}
-
-LOCALPROC WriteWinMainRC(void)
-{
-	WriteADstFile1("my_config_d",
-		"main", ".rc", "Resource Configuration file",
-		WriteWinMainRCcontents);
-}
-
 LOCALPROC WriteConfigFiles(void)
 {
 	WriteAppSpecificConfigFiles();
-
-	if (HaveMacRrscs) {
-		WriteCommonCNFGRSRC();
-	}
-
-	if (gbk_apifam_win == gbo_apifam) {
-		WriteWinMainRC();
-	}
 }
 
 

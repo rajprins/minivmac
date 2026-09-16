@@ -93,25 +93,6 @@ static void DoOSGLUdepends(tDoOneDepends p)
 		p(kDepDirCSrc, "ALTKEYSM.h");
 	}
 	p(kDepDirCSrc, "CONTROLM.h");
-	if (gbk_sndapi_none != gbo_sndapi) {
-		{
-			char *s = nullpr;
-
-			switch (gbo_sndapi) {
-				case gbk_sndapi_alsa:
-					s = "SGLUALSA.h";
-					break;
-				case gbk_sndapi_ddsp:
-					s = "SGLUDDSP.h";
-					break;
-			}
-
-			if (nullpr != s) {
-				p(kDepDirCSrc, s);
-			}
-		}
-		p(kDepDirCnfg, "SOUNDGLU.h");
-	}
 }
 
 static void DoMINEM68Kdepends(tDoOneDepends p)
@@ -134,15 +115,8 @@ static void DoROMEMDEVdepends(tDoOneDepends p)
 
 static void DoAllSrcFiles(tDoOneCFile p)
 {
-	blnr WantSCRNMAPR = (gbk_apifam_osx == gbo_apifam)
-		|| (gbk_apifam_mac == gbo_apifam)
-		|| (gbk_apifam_cco == gbo_apifam)
-		|| (gbk_apifam_xwn == gbo_apifam)
-		|| (gbk_apifam_dos == gbo_apifam)
-		|| (gbk_apifam_sdl == gbo_apifam)
-		|| (gbk_apifam_sd2 == gbo_apifam)
-		|| (gbk_apifam_sd3 == gbo_apifam);
-	blnr WantSCRNTRNS = WantSCRNMAPR && (cur_ScrnDpth != 0);
+	blnr WantSCRNMAPR = trueblnr; /* Cocoa uses the screen mapper */
+	blnr WantSCRNTRNS = (cur_ScrnDpth != 0);
 
 	p("CNFUIOSG", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);
 	p("CNFUIALL", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);
@@ -193,65 +167,15 @@ static void DoAllSrcFiles(tDoOneCFile p)
 	p("ACTVCODE", kDepDirCSrc,
 		CSrcFlagsUseHdrIf(WantActvCode), nullpr);
 	p("CONTROLM", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);
-	p("PBUFSTDC", kDepDirCSrc,
-		CSrcFlagsUseHdrIf((gbk_apifam_xwn == gbo_apifam)
-			|| (gbk_apifam_dos == gbo_apifam)
-			|| (gbk_apifam_sd3 == gbo_apifam)
-			|| (gbk_apifam_sd2 == gbo_apifam)
-			|| (gbk_apifam_sdl == gbo_apifam)
-			),
-		nullpr);
 	p("SCRNMAPR", kDepDirCSrc,
 		CSrcFlagsUseHdrIf(WantSCRNMAPR), nullpr);
 	p("SCRNTRNS", kDepDirCSrc,
 		CSrcFlagsUseHdrIf(WantSCRNTRNS), nullpr);
 	p("DATE2SEC", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);
 
-	p("SGLUALSA", kDepDirCSrc,
-		CSrcFlagsUseHdrIf(gbk_sndapi_alsa == gbo_sndapi), nullpr);
-	p("SGLUDDSP", kDepDirCSrc,
-		CSrcFlagsUseHdrIf(gbk_sndapi_ddsp == gbo_sndapi), nullpr);
-
-	p("SOUNDGLU", kDepDirCnfg,
-		CSrcFlagsUseHdrIf(gbk_sndapi_none != gbo_sndapi), nullpr);
-
-	p("OSGLUMAC", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf(gbk_apifam_mac == gbo_apifam),
-		DoOSGLUdepends);
-	p("OSGLUOSX", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf(gbk_apifam_osx == gbo_apifam),
-		DoOSGLUdepends);
-	p("OSGLUWIN", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf(gbk_apifam_win == gbo_apifam),
-		DoOSGLUdepends);
-	p("OSGLUXWN", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf(gbk_apifam_xwn == gbo_apifam),
-		DoOSGLUdepends);
-	p("OSGLUDOS", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf(gbk_apifam_dos == gbo_apifam),
-		DoOSGLUdepends);
-	p("OSGLUNDS", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf(gbk_apifam_nds == gbo_apifam),
-		DoOSGLUdepends);
-	p("OSGLUGTK", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf(gbk_apifam_gtk == gbo_apifam),
-		DoOSGLUdepends);
-	p("OSGLUSDL", kDepDirCSrc,
-		kCSrcFlgmUseAPI
-			| CSrcFlagsUseSrcIf((gbk_apifam_sdl == gbo_apifam)
-				|| (gbk_apifam_sd3 == gbo_apifam)
-				|| (gbk_apifam_sd2 == gbo_apifam)),
-		DoOSGLUdepends);
 	p("OSGLUCCO", kDepDirCSrc,
-		kCSrcFlgmUseAPI | kCSrcFlgmOjbc
-			| CSrcFlagsUseSrcIf(gbk_apifam_cco == gbo_apifam),
+		kCSrcFlgmUseAPI | kCSrcFlgmOjbc | kCSrcFlgmNoHeader,
+			/* OSGLUCCO is a .m with no header of its own */
 		DoOSGLUdepends);
 
 	p("CNFUIPIC", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);
