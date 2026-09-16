@@ -71,47 +71,17 @@ LOCALPROC WriteLnCStrToOutput(char *s)
 }
 
 
-/* --- code specific to Scripting Language --- */
+/* --- code for writing the generated bash script --- */
 
-enum {
-	gbk_script_mpw, /* Macintosh Programmers Workshop */
-	gbk_script_aps, /* AppleScript */
-	gbk_script_bsh, /* bash */
-	gbk_script_vbs, /* VBScript */
-	gbk_script_xps, /* XP */
-	kNumScripts
-};
-
-LOCALVAR int cur_script;
-
-#ifndef BashUsePrintf
-#define BashUsePrintf 1
-#endif
-
-#ifndef MPWOneEchoPerFile
-#define MPWOneEchoPerFile 0
-#endif
+/*
+	The generator used to be able to emit MPW, AppleScript, VBScript
+	and Windows XP batch scripts as well. Only bash remains.
+*/
 
 GLOBALPROC WriteScriptLangHeader(void)
 {
-	switch (cur_script) {
-		case gbk_script_mpw:
-			break;
-		case gbk_script_aps:
-			break;
-		case gbk_script_bsh:
-			WriteLnCStrToOutput("#! /bin/bash");
-			WriteEolToOutput();
-			break;
-		case gbk_script_vbs:
-			break;
-		case gbk_script_xps:
-			WriteLnCStrToOutput("@echo off");
-			WriteEolToOutput();
-			break;
-		default:
-			break;
-	}
+	WriteLnCStrToOutput("#! /bin/bash");
+	WriteEolToOutput();
 }
 
 GLOBALPROC WriteSectionCommentDestFile(char * Description)
@@ -119,29 +89,9 @@ GLOBALPROC WriteSectionCommentDestFile(char * Description)
 	WriteEolToOutput();
 	WriteEolToOutput();
 
-	switch (cur_script) {
-		case gbk_script_mpw:
-		case gbk_script_bsh:
-			WriteCStrToOutput("# ----- ");
-			WriteCStrToOutput(Description);
-			WriteCStrToOutput(" -----");
-			break;
-		case gbk_script_aps:
-			WriteCStrToOutput("\t--- ");
-			WriteCStrToOutput(Description);
-			WriteCStrToOutput(" -----");
-			break;
-		case gbk_script_vbs:
-			WriteCStrToOutput("' ----- ");
-			WriteCStrToOutput(Description);
-			WriteCStrToOutput(" -----");
-			break;
-		case gbk_script_xps:
-			WriteCStrToOutput("rem ----- ");
-			WriteCStrToOutput(Description);
-			WriteCStrToOutput(" -----");
-			break;
-	}
+	WriteCStrToOutput("# ----- ");
+	WriteCStrToOutput(Description);
+	WriteCStrToOutput(" -----");
 
 	WriteEolToOutput();
 }
@@ -155,101 +105,19 @@ LOCALPROC WriteOpenDestFile(char *DirVar, char *FileName, char *FileExt,
 
 	WriteEolToOutput();
 
-	switch (cur_script) {
-		case gbk_script_mpw:
-#if MPWOneEchoPerFile
-			WriteCStrToOutput("Echo -n > \"{");
-			WriteCStrToOutput(DirVar);
-			WriteCStrToOutput("}");
-			WriteCStrToOutput(FileName);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("\" \266");
-			WriteEolToOutput();
-#else
-			WriteCStrToOutput("Set DestFile \"{");
-			WriteCStrToOutput(DirVar);
-			WriteCStrToOutput("}");
-			WriteCStrToOutput(FileName);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("\"");
-			WriteEolToOutput();
-			WriteLnCStrToOutput("Echo -n > \"{DestFile}\"");
-			WriteEolToOutput();
-#endif
-			break;
-		case gbk_script_aps:
-			WriteCStrToOutput(
-				"\tset DestFile to open for access file (");
-			WriteCStrToOutput(DirVar);
-			WriteCStrToOutput(" & \"");
-			WriteCStrToOutput(FileName);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("\") with write permission");
-			WriteEolToOutput();
-			WriteEolToOutput();
-			WriteLnCStrToOutput("\tset eof DestFile to 0");
-			break;
-		case gbk_script_bsh:
-			WriteCStrToOutput("DestFile=\"${");
-			WriteCStrToOutput(DirVar);
-			WriteCStrToOutput("}");
-			WriteCStrToOutput(FileName);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("\"");
-			WriteEolToOutput();
-#if BashUsePrintf
-			WriteLnCStrToOutput("printf \"\" > \"${DestFile}\"");
-#else
-			/* WriteLnCStrToOutput("echo -n > \"${DestFile}\""); */
-			WriteLnCStrToOutput("true > \"${DestFile}\"");
-#endif
-			WriteEolToOutput();
-			break;
-		case gbk_script_vbs:
-			WriteCStrToOutput("Set f = fso.CreateTextFile(");
-			WriteCStrToOutput(DirVar);
-			WriteCStrToOutput(" & \"\\");
-			WriteCStrToOutput(FileName);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("\", True)");
-			WriteEolToOutput();
-			WriteEolToOutput();
-			break;
-		case gbk_script_xps:
-			WriteCStrToOutput("set DestFile=%");
-			WriteCStrToOutput(DirVar);
-			WriteCStrToOutput("%");
-			WriteCStrToOutput("\\");
-			WriteCStrToOutput(FileName);
-			WriteCStrToOutput(FileExt);
-			WriteEolToOutput();
-			WriteLnCStrToOutput("echo.>\"%DestFile%\"");
-			WriteLnCStrToOutput("del \"%DestFile%\"");
-			break;
-	}
+	WriteCStrToOutput("DestFile=\"${");
+	WriteCStrToOutput(DirVar);
+	WriteCStrToOutput("}");
+	WriteCStrToOutput(FileName);
+	WriteCStrToOutput(FileExt);
+	WriteCStrToOutput("\"");
+	WriteEolToOutput();
+	WriteLnCStrToOutput("printf \"\" > \"${DestFile}\"");
+	WriteEolToOutput();
 }
 
 LOCALPROC WriteCloseDestFile(void)
 {
-	switch (cur_script) {
-		case gbk_script_mpw:
-#if MPWOneEchoPerFile
-			WriteLnCStrToOutput("''");
-#endif
-			break;
-		case gbk_script_aps:
-			WriteEolToOutput();
-			WriteLnCStrToOutput("\tclose access DestFile");
-			break;
-		case gbk_script_bsh:
-			break;
-		case gbk_script_vbs:
-			WriteEolToOutput();
-			WriteLnCStrToOutput("f.Close");
-			break;
-		case gbk_script_xps:
-			break;
-	}
 }
 
 TYPEDEFPROC (*MyProc)(void);
@@ -264,31 +132,7 @@ LOCALPROC WriteADstFile1(char *DirVar,
 
 LOCALPROC WriteBlankLineToDestFile(void)
 {
-	switch (cur_script) {
-		case gbk_script_mpw:
-#if MPWOneEchoPerFile
-			WriteLnCStrToOutput("''\266n\266");
-#else
-			WriteLnCStrToOutput("Echo '' >> \"{DestFile}\"");
-#endif
-			break;
-		case gbk_script_aps:
-			WriteLnCStrToOutput("\twrite \"\" & return to DestFile");
-			break;
-		case gbk_script_bsh:
-#if BashUsePrintf
-			WriteLnCStrToOutput("printf \"\\n\" >> \"${DestFile}\"");
-#else
-			WriteLnCStrToOutput("echo '' >> \"${DestFile}\"");
-#endif
-			break;
-		case gbk_script_vbs:
-			WriteLnCStrToOutput("f.WriteLine(\"\")");
-			break;
-		case gbk_script_xps:
-			WriteLnCStrToOutput("echo.>>\"%DestFile%\"");
-			break;
-	}
+	WriteLnCStrToOutput("printf \"\\n\" >> \"${DestFile}\"");
 }
 
 LOCALVAR int DestFileIndent = 0;
@@ -297,31 +141,7 @@ LOCALPROC WriteBgnDestFileLn(void)
 {
 	int i;
 
-	switch (cur_script) {
-		case gbk_script_mpw:
-#if MPWOneEchoPerFile
-			WriteCStrToOutput("'");
-#else
-			WriteCStrToOutput("Echo '");
-#endif
-			break;
-		case gbk_script_aps:
-			WriteCStrToOutput("\twrite \"");
-			break;
-		case gbk_script_bsh:
-#if BashUsePrintf
-			WriteCStrToOutput("printf \"%s\\n\" '");
-#else
-			WriteCStrToOutput("echo '");
-#endif
-			break;
-		case gbk_script_vbs:
-			WriteCStrToOutput("f.WriteLine(\"");
-			break;
-		case gbk_script_xps:
-			WriteCStrToOutput("echo ");
-			break;
-	}
+	WriteCStrToOutput("printf \"%s\\n\" '");
 
 	for (i = 0; i < DestFileIndent; ++i) {
 		WriteCStrToOutput("\t");
@@ -330,27 +150,7 @@ LOCALPROC WriteBgnDestFileLn(void)
 
 LOCALPROC WriteEndDestFileLn(void)
 {
-	switch (cur_script) {
-		case gbk_script_mpw:
-#if MPWOneEchoPerFile
-			WriteCStrToOutput("'\266n\266");
-#else
-			WriteCStrToOutput("' >> \"{DestFile}\"");
-#endif
-			break;
-		case gbk_script_aps:
-			WriteCStrToOutput("\" & return to DestFile");
-			break;
-		case gbk_script_bsh:
-			WriteCStrToOutput("' >> \"${DestFile}\"");
-			break;
-		case gbk_script_vbs:
-			WriteCStrToOutput("\")");
-			break;
-		case gbk_script_xps:
-			WriteCStrToOutput(">>\"%DestFile%\"");
-			break;
-	}
+	WriteCStrToOutput("' >> \"${DestFile}\"");
 
 	WriteEolToOutput();
 }
@@ -360,133 +160,13 @@ LOCALPROC WriteCharsToDestFile(char *p, uimr n)
 	simr i;
 	char c;
 
-	switch (cur_script) {
-		case gbk_script_mpw:
-			for (i = n; --i >= 0; ) {
-				if ('\'' == (c = *p++)) {
-					WriteCStrToOutput("'\266''");
-				} else {
-					WriteCharToOutput(c);
-				}
-			}
-			break;
-		case gbk_script_aps:
-			for (i = n; --i >= 0; ) {
-				if ('"' == (c = *p++)) {
-					WriteCStrToOutput("\\\"");
-				} else {
-					WriteCharToOutput(c);
-				}
-			}
-			break;
-		case gbk_script_bsh:
-			for (i = n; --i >= 0; ) {
-				if ('\'' == (c = *p++)) {
-					WriteCStrToOutput("'\\''");
-				} else {
-					WriteCharToOutput(c);
-				}
-			}
-			break;
-		case gbk_script_vbs:
-			for (i = n; --i >= 0; ) {
-				if ('"' == (c = *p++)) {
-					WriteCStrToOutput("\"\"");
-				} else {
-					WriteCharToOutput(c);
-				}
-			}
-			break;
-		case gbk_script_xps:
-			for (i = n; --i >= 0; ) {
-				c = *p++;
-				switch (c) {
-					case '%':
-						WriteCStrToOutput("%%");
-						break;
-					case '^':
-					case '<':
-					case '>':
-					case '|':
-					case '"':
-
-						/*
-							digit preceeding redirection
-							modifies the redirection
-						*/
-					case '0':
-					case '1':
-					case '2':
-					case '3':
-					case '4':
-					case '5':
-					case '6':
-					case '7':
-					case '8':
-					case '9':
-						WriteCStrToOutput("^");
-						WriteCharToOutput(c);
-						break;
-					default:
-						WriteCharToOutput(c);
-						break;
-				}
-			}
-			break;
+	for (i = n; --i >= 0; ) {
+		if ('\'' == (c = *p++)) {
+			WriteCStrToOutput("'\\''");
+		} else {
+			WriteCharToOutput(c);
+		}
 	}
-}
-
-LOCALPROC WriteBgnCommentBlock(void)
-{
-	switch (cur_script) {
-		case gbk_script_aps:
-			WriteLnCStrToOutput("(*");
-			break;
-		default:
-			break;
-	}
-}
-
-LOCALPROC WriteEndCommentBlock(void)
-{
-	switch (cur_script) {
-		case gbk_script_aps:
-			WriteLnCStrToOutput("*)");
-			break;
-		default:
-			break;
-	}
-}
-
-LOCALPROC WriteBgnCommentBlockLn(void)
-{
-	switch (cur_script) {
-		case gbk_script_mpw:
-		case gbk_script_bsh:
-			WriteCStrToOutput("# ");
-			break;
-		case gbk_script_aps:
-			WriteCStrToOutput("\t");
-			break;
-		case gbk_script_vbs:
-			WriteCStrToOutput("' ");
-			break;
-		case gbk_script_xps:
-			WriteCStrToOutput("rem ");
-			break;
-	}
-}
-
-LOCALPROC WriteEndCommentBlockLn(void)
-{
-	WriteEolToOutput();
-}
-
-LOCALPROC WriteCommentBlockLn(char *s)
-{
-	WriteBgnCommentBlockLn();
-	WriteCStrToOutput(s);
-	WriteEndCommentBlockLn();
 }
 
 LOCALPROC MakeSubDirectory(char *new_d, char *parent_d, char *name,
@@ -494,116 +174,26 @@ LOCALPROC MakeSubDirectory(char *new_d, char *parent_d, char *name,
 {
 	WriteEolToOutput();
 
-	switch (cur_script) {
-		case gbk_script_mpw:
-			WriteCStrToOutput("Set ");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput(" \"{");
-			WriteCStrToOutput(parent_d);
-			WriteCStrToOutput("}");
-			WriteCStrToOutput(name);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput(":\"");
-			WriteEolToOutput();
+	WriteCStrToOutput(new_d);
+	WriteCStrToOutput("=\"${");
+	WriteCStrToOutput(parent_d);
+	WriteCStrToOutput("}");
+	WriteCStrToOutput(name);
+	WriteCStrToOutput(FileExt);
+	WriteCStrToOutput("/\"");
+	WriteEolToOutput();
 
-			WriteCStrToOutput("IF not \"`exists -q \"{");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("}\"`\"");
-			WriteEolToOutput();
+	WriteCStrToOutput("if test ! -d \"${");
+	WriteCStrToOutput(new_d);
+	WriteCStrToOutput("}\" ; then");
+	WriteEolToOutput();
 
-			WriteCStrToOutput("\tNewFolder \"{");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("}\"");
-			WriteEolToOutput();
+	WriteCStrToOutput("\tmkdir \"${");
+	WriteCStrToOutput(new_d);
+	WriteCStrToOutput("}\"");
+	WriteEolToOutput();
 
-			WriteLnCStrToOutput("END");
-			break;
-		case gbk_script_aps:
-			WriteCStrToOutput("\tset ");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput(" to ");
-			WriteCStrToOutput(parent_d);
-			WriteCStrToOutput(" & \"");
-			WriteCStrToOutput(name);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput(":\"");
-			WriteEolToOutput();
-
-			WriteCStrToOutput("\tmake new folder at alias ");
-			WriteCStrToOutput(parent_d);
-			WriteCStrToOutput(" with properties {name:\"");
-			WriteCStrToOutput(name);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("\"}");
-			WriteEolToOutput();
-			break;
-		case gbk_script_bsh:
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("=\"${");
-			WriteCStrToOutput(parent_d);
-			WriteCStrToOutput("}");
-			WriteCStrToOutput(name);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("/\"");
-			WriteEolToOutput();
-
-			WriteCStrToOutput("if test ! -d \"${");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("}\" ; then");
-			WriteEolToOutput();
-
-			WriteCStrToOutput("\tmkdir \"${");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("}\"");
-			WriteEolToOutput();
-
-			WriteLnCStrToOutput("fi");
-			break;
-		case gbk_script_vbs:
-			WriteCStrToOutput("dim ");
-			WriteCStrToOutput(new_d);
-			WriteEolToOutput();
-
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput(" = ");
-			WriteCStrToOutput(parent_d);
-			WriteCStrToOutput(" & \"\\");
-			WriteCStrToOutput(name);
-			WriteCStrToOutput(FileExt);
-			WriteCStrToOutput("\"");
-			WriteEolToOutput();
-
-			WriteCStrToOutput("if (NOT fso.FolderExists(");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput(")) Then");
-			WriteEolToOutput();
-
-			WriteCStrToOutput("\tfso.CreateFolder(");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput(")");
-			WriteEolToOutput();
-
-			WriteLnCStrToOutput("End If");
-			break;
-		case gbk_script_xps:
-			WriteCStrToOutput("set ");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("=%");
-			WriteCStrToOutput(parent_d);
-			WriteCStrToOutput("%");
-			WriteCStrToOutput("\\");
-			WriteCStrToOutput(name);
-			WriteCStrToOutput(FileExt);
-			WriteEolToOutput();
-
-			WriteCStrToOutput("if not exist \"%");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("%\" mkdir \"%");
-			WriteCStrToOutput(new_d);
-			WriteCStrToOutput("%\"");
-			WriteEolToOutput();
-			break;
-	}
+	WriteLnCStrToOutput("fi");
 }
 
 
@@ -643,11 +233,6 @@ LOCALPROC WriteSpaceToDestFile(void)
 LOCALPROC WriteQuoteToDestFile(void)
 {
 	WriteCharToDestFile('\"');
-}
-
-LOCALPROC WriteSingleQuoteToDestFile(void)
-{
-	WriteCharToDestFile('\'');
 }
 
 LOCALPROC WriteBackSlashToDestFile(void)

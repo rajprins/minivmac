@@ -37,44 +37,44 @@ enum {
 	APBoclsIcnsBld,
 	APBoclsFramBld,
 	APBospcLibStdcBld,
-	APBospcMnRsrcBld, /* only if HaveMacRrscs */
+	APBospcMnRsrcBld, /* unused; kept so later object ids don't shift */
 	APBospcLangDummyBld,
 
 	APBospcBuildStyle,
 
 	APBoclsSrcRf,
-	APBoclsHdr, /* only if gbk_ide_xcd == cur_ide */
-	APBoclsInc, /* only if gbk_ide_xcd == cur_ide */
+	APBoclsHdr,
+	APBoclsInc,
 	APBoclsIcnsRf,
 	APBoclsFramRf,
 	APBospcLibStdcRf,
 	APBospcProductRef,
 	APBospcPlistRf,
-	APBospcMainRsrcRf, /* only if HaveMacRrscs */
+	APBospcMainRsrcRf, /* unused; kept so later object ids don't shift */
 	APBospcLangRf,
 
 	APBospcPhaseLibs,
 	APBospcSources,
-	APBospcResources, /* only if HaveMacBundleApp */
+	APBospcResources,
 	APBospcLibraries,
 	APBospcProducts,
 	APBospcMainGroup,
-	APBospcSrcHeaders, /* only if gbk_ide_xcd == cur_ide */
-	APBospcIncludes, /* only if gbk_ide_xcd == cur_ide */
+	APBospcSrcHeaders,
+	APBospcIncludes,
 
 	APBospcTarget,
 	APBospcRoot,
-	APBospcBunRsrcs, /* only if HaveMacBundleApp */
-	APBospcPhaseRsrc, /* only if HaveMacRrscs */
+	APBospcBunRsrcs,
+	APBospcPhaseRsrc, /* unused; kept so later object ids don't shift */
 	APBospcHeaders,
 	APBospcPhaseSrcs,
 
 	APBospcLangDummyRf,
 
-	APBospcNatCnfg, /* only if gbk_ide_xcd == cur_ide */
-	APBospcPrjCnfg, /* only if gbk_ide_xcd == cur_ide */
-	APBospcLstNatCnfg, /* only if gbk_ide_xcd == cur_ide */
-	APBospcLstPrjCnfg, /* only if gbk_ide_xcd == cur_ide */
+	APBospcNatCnfg,
+	APBospcPrjCnfg,
+	APBospcLstNatCnfg,
+	APBospcLstPrjCnfg,
 
 	kNumAPBocls
 };
@@ -672,63 +672,6 @@ LOCALPROC DoExtraHeaderFileXCDaddToGroup(void)
 		WriteExtraHeaderFileName);
 }
 
-LOCALPROC WriteMainAPBXCDRsrcNameinRez(void)
-{
-	WriteMainRsrcName();
-	WriteCStrToDestFile(" in Rez");
-}
-
-LOCALPROC DoRsrcAPBXCDaddFileBody(void)
-{
-	if (HaveAPBXCD_IsaFirst) {
-		WriteAPBXCDDObjAPropIsaBuildFile();
-	}
-
-	WriteAPBXCDDObjAPropFileRef(APBospcMainRsrcRf, 0,
-		WriteMainRsrcName);
-	if (! HaveAPBXCD_IsaFirst) {
-		WriteAPBXCDDObjAPropIsaBuildFile();
-	}
-	WriteAPBXCDDObjAPropSettingsNull();
-}
-
-LOCALPROC DoRsrcAPBXCDaddFile(void)
-{
-	WriteAPBXCDObjectAp(APBospcMnRsrcBld, 0,
-		WriteMainAPBXCDRsrcNameinRez,
-		DoRsrcAPBXCDaddFileBody);
-}
-
-LOCALPROC WriteRsrcAPBXCDtype(void)
-{
-	WriteCStrToDestFile("sourcecode.rez");
-}
-
-LOCALPROC DoRsrcAPBXCDaddFileRefBody(void)
-{
-	if (HaveAPBXCD_IsaFirst) {
-		WriteAPBXCDDObjAPropIsaFileReference();
-	}
-
-	WriteAPBXCDDObjAPropExpectedFileType(WriteRsrcAPBXCDtype);
-	WriteAPBXCDDObjAPropFileEncoding30();
-	if (! HaveAPBXCD_IsaFirst) {
-		WriteAPBXCDDObjAPropIsaFileReference();
-	}
-	WriteAPBXCDDObjAPropLastKnownFType(WriteRsrcAPBXCDtype);
-	WriteAPBXCDDObjAPropName(WriteMainRsrcName);
-	WriteAPBXCDDObjAPropPath(WriteMainRsrcSrcPath);
-	WriteAPBXCDDObjAPropRefType2();
-	WriteAPBXCDDObjAPropSourceTreeRoot();
-}
-
-LOCALPROC DoRsrcAPBXCDaddFileRef(void)
-{
-	WriteAPBXCDObjectAp(APBospcMainRsrcRf, 0,
-		WriteMainRsrcName,
-		DoRsrcAPBXCDaddFileRefBody);
-}
-
 LOCALPROC WriteLibStdcName(void)
 {
 	WriteCStrToDestFile("libstdc++.a");
@@ -956,11 +899,7 @@ LOCALPROC WriteAPBXCDDObjAPropIsaApplicationRef(void)
 
 LOCALPROC WriteProductAPBXCDtype(void)
 {
-	if (HaveMacBundleApp) {
-		WriteCStrToDestFile("wrapper.application");
-	} else {
-		WriteCStrToDestFile("\"compiled.mach-o.executable\"");
-	}
+	WriteCStrToDestFile("wrapper.application");
 }
 
 LOCALPROC DoProductAPBXCDaddFileRefBody(void)
@@ -1028,22 +967,7 @@ LOCALPROC WriteAPBXCDBuildSettings(void)
 	}
 
 	if (ide_vers >= 2100) {
-		/* if (CrossCompile) */ {
-			if (gbk_cpufam_x86 == gbo_cpufam) {
-				WriteDestFileLn("ARCHS = i386;");
-				/*
-					may be preferred in later versions:
-					WriteDestFileLn(
-						"ARCHS = \"$(ARCHS_STANDARD_32_BIT)\";");
-				*/
-			} else
-			if (gbk_cpufam_x64 == gbo_cpufam || gbk_cpufam_a64 == gbo_cpufam) {
-				WriteDestFileLn("ARCHS = \"$(ARCHS_STANDARD)\";");
-			} else
-			{
-				WriteDestFileLn("ARCHS = ppc;");
-			}
-		}
+		WriteDestFileLn("ARCHS = \"$(ARCHS_STANDARD)\";");
 	}
 	if (ide_vers >= 12100) {
 		WriteDestFileLn("CODE_SIGN_IDENTITY = \"\";");
@@ -1117,42 +1041,20 @@ LOCALPROC WriteAPBXCDBuildSettings(void)
 		WriteDestFileLn("GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;");
 	}
 
-	if (HaveMacBundleApp) {
-		WriteBgnDestFileLn();
-		WriteCStrToDestFile("INFOPLIST_FILE = ");
-		WriteInfoPlistFilePath();
-		WriteCStrToDestFile(";");
-		WriteEndDestFileLn();
-	}
+	WriteBgnDestFileLn();
+	WriteCStrToDestFile("INFOPLIST_FILE = ");
+	WriteInfoPlistFilePath();
+	WriteCStrToDestFile(";");
+	WriteEndDestFileLn();
 	if (ide_vers >= 1000) {
 		WriteDestFileLn("INSTALL_PATH = \"$(HOME)/Applications\";");
-	}
-	if (ide_vers >= 12100) {
-		if (gbk_cpufam_a64 != gbo_cpufam) {
-			WriteDestFileLn("LD_NO_PIE = YES;");
-		}
 	}
 	if (ide_vers < 1500) {
 		WriteAPBQuotedField("LIBRARY_SEARCH_PATHS", "");
 	}
 	if (ide_vers >= 2100) {
-		if (gbk_cpufam_ppc == gbo_cpufam) {
-			WriteDestFileLn("MACOSX_DEPLOYMENT_TARGET = 10.1;");
-		} else
-		if (gbk_cpufam_a64 == gbo_cpufam || gbk_cpufam_x64 == gbo_cpufam) {
-			WriteDestFileLn("MACOSX_DEPLOYMENT_TARGET = \"$(MACOSX_RECOMMENDED_DEPLOYMENT_TARGET)\";");
-		} else
-		{
-			if (ide_vers >= 12100) {
-				WriteDestFileLn("MACOSX_DEPLOYMENT_TARGET = 10.9;");
-			} else
-			if (ide_vers >= 9000) {
-				WriteDestFileLn("MACOSX_DEPLOYMENT_TARGET = 10.6;");
-			} else
-			{
-				WriteDestFileLn("MACOSX_DEPLOYMENT_TARGET = 10.4;");
-			}
-		}
+		WriteDestFileLn("MACOSX_DEPLOYMENT_TARGET = "
+			"\"$(MACOSX_RECOMMENDED_DEPLOYMENT_TARGET)\";");
 	}
 
 	if (ide_vers >= 12100) {
@@ -1172,15 +1074,6 @@ LOCALPROC WriteAPBXCDBuildSettings(void)
 		WriteAPBQuotedField("OTHER_LDFLAGS", "");
 		WriteAPBQuotedField("OTHER_REZFLAGS", "");
 	} else {
-		if (! HaveMacBundleApp) {
-			WriteAPBXCDBgnObjList("OTHER_LDFLAGS");
-				WriteDestFileLn("\"-L/usr/X11R6/lib\",");
-#if 0
-				WriteDestFileLn("\"-lXext\",");
-#endif
-				WriteDestFileLn("\"-lX11\",");
-			WriteAPBXCDEndObjList();
-		}
 	}
 	if ((ide_vers >= 1500) && (ide_vers < 4000)) {
 		WriteDestFileLn("PREBINDING = NO;");
@@ -1230,7 +1123,7 @@ LOCALPROC WriteAPBXCDBuildSettings(void)
 			"-Wall -Wstrict-prototypes -Wno-uninitialized"
 			" -Wno-four-char-constants -Wno-unknown-pragmas");
 	}
-	if ((HaveMacBundleApp) && (ide_vers < 3100)) {
+	if (ide_vers < 3100) {
 		WriteDestFileLn("WRAPPER_EXTENSION = app;");
 	}
 	if ((ide_vers >= 1000) && (ide_vers < 3100)) {
@@ -1297,11 +1190,6 @@ LOCALPROC WriteStrSources(void)
 LOCALPROC WriteStrResources(void)
 {
 	WriteCStrToDestFile("Resources");
-}
-
-LOCALPROC WriteStrRez(void)
-{
-	WriteCStrToDestFile("Rez");
 }
 
 LOCALPROC WriteStrFrameworksLibraries(void)
@@ -1384,7 +1272,6 @@ LOCALPROC WriteStrConfListPBXNativeTarget(void)
 	WriteCStrToDestFile("\"");
 }
 
-#define HaveFrameworks HaveMacBundleApp
 
 LOCALPROC WriteXCDdummyfile(void)
 {
@@ -1422,25 +1309,16 @@ LOCALPROC WriteXCDProjectFile(void)
 
 	DoBeginSectionAPBXCD("PBXBuildFile");
 		DoAllSrcFilesWithSetup(DoSrcFileAPBXCDaddFile);
-		if (HaveMacBundleApp) {
-			DoAllDocTypesWithSetup(DoDocTypeAPBXCDaddFile);
-		}
+		DoAllDocTypesWithSetup(DoDocTypeAPBXCDaddFile);
 
-		if (HaveFrameworks) {
-			DoAllFrameWorksWithSetup(DoFrameWorkAPBXCDaddFile);
-		}
+		DoAllFrameWorksWithSetup(DoFrameWorkAPBXCDaddFile);
 		if (HaveAPBXCD_StdcLib) {
 			DoLibStdcAPBXCDaddFile();
 		}
 
-		if (HaveMacRrscs) {
-			DoRsrcAPBXCDaddFile();
-		}
 
-		if (HaveMacBundleApp) {
-			if (HaveAPBXCD_LangDummy) {
-				DoDummyLangAPBXCDaddFile();
-			}
+		if (HaveAPBXCD_LangDummy) {
+			DoDummyLangAPBXCDaddFile();
 		}
 	DoEndSectionAPBXCD("PBXBuildFile");
 
@@ -1476,31 +1354,20 @@ LOCALPROC WriteXCDProjectFile(void)
 				DoExtraHeaderFileXCDaddFileRef);
 		}
 
-		if (HaveMacBundleApp) {
-			DoAllDocTypesWithSetup(DoDocTypeAPBXCDaddFileRef);
-		}
+		DoAllDocTypesWithSetup(DoDocTypeAPBXCDaddFileRef);
 
-		if (HaveFrameworks) {
-			DoAllFrameWorksWithSetup(DoFrameWorkAPBXCDaddFileRef);
-		}
+		DoAllFrameWorksWithSetup(DoFrameWorkAPBXCDaddFileRef);
 		if (HaveAPBXCD_StdcLib) {
 			DoLibStdcAPBXCDaddFileRef();
 		}
 
 		DoProductAPBXCDaddFileRef();
 
-		if (HaveMacBundleApp) {
-			if (HaveAPBXCD_PlistFile) {
-				DoPlistAPBXCDaddFileRef();
-			}
+		if (HaveAPBXCD_PlistFile) {
+			DoPlistAPBXCDaddFileRef();
 		}
-		if (HaveMacRrscs) {
-			DoRsrcAPBXCDaddFileRef();
-		}
-		if (HaveMacBundleApp) {
-			if (HaveAPBXCD_LangDummy) {
-				DoLangDummyAPBXCDaddFileRef();
-			}
+		if (HaveAPBXCD_LangDummy) {
+			DoLangDummyAPBXCDaddFileRef();
 		}
 	DoEndSectionAPBXCD("PBXFileReference");
 
@@ -1512,10 +1379,8 @@ LOCALPROC WriteXCDProjectFile(void)
 
 			WriteDestFileLn("buildActionMask = 2147483647;");
 			WriteAPBXCDBgnObjList("files");
-				if (HaveFrameworks) {
-					DoAllFrameWorksWithSetup(
-						DoFrameworkAPBXCDaddToBuild);
-				}
+				DoAllFrameWorksWithSetup(
+					DoFrameworkAPBXCDaddToBuild);
 				if (HaveAPBXCD_StdcLib) {
 					WriteAPBXCDobjlistelmp(APBospcLibStdcBld,
 						0, WriteLibStdcName);
@@ -1536,12 +1401,6 @@ LOCALPROC WriteXCDProjectFile(void)
 
 			WriteAPBXCDBgnObjList("children");
 				DoAllSrcFilesWithSetup(DoSrcFileAPBXCDaddToGroup);
-				if (HaveMacRrscs) {
-					if (ide_vers >= 2100) {
-						WriteAPBXCDobjlistelmp(APBospcMainRsrcRf, 0,
-							WriteMainRsrcName);
-					}
-				}
 			WriteAPBXCDEndObjList();
 			if (! HaveAPBXCD_IsaFirst) {
 				WriteAPBXCDDObjAPropIsaGroup();
@@ -1552,72 +1411,62 @@ LOCALPROC WriteXCDProjectFile(void)
 			WriteAPBXCDDObjAPropSourceTreeGroup();
 		WriteAPBXCDEndObject();
 
-		if (HaveMacBundleApp) {
-			WriteAPBXCDBeginObject(APBospcResources,
-				0, WriteStrResources);
+		WriteAPBXCDBeginObject(APBospcResources,
+			0, WriteStrResources);
 
-				if (HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsaGroup();
+			if (HaveAPBXCD_IsaFirst) {
+				WriteAPBXCDDObjAPropIsaGroup();
+			}
+
+			WriteAPBXCDBgnObjList("children");
+				DoAllDocTypesWithSetup(
+					DoDocTypeAPBXCDaddToGroup);
+				if (HaveAPBXCD_PlistFile) {
+					WriteAPBXCDobjlistelmp(APBospcPlistRf,
+						0, WriteInfoPlistFileName);
 				}
-
-				WriteAPBXCDBgnObjList("children");
-					if (HaveMacRrscs) {
-						if (ide_vers < 2100) {
-							WriteAPBXCDobjlistelmp(APBospcMainRsrcRf,
-								0, WriteMainRsrcName);
-						}
-					}
-					DoAllDocTypesWithSetup(
-						DoDocTypeAPBXCDaddToGroup);
-					if (HaveAPBXCD_PlistFile) {
-						WriteAPBXCDobjlistelmp(APBospcPlistRf,
-							0, WriteInfoPlistFileName);
-					}
-					if (HaveAPBXCD_LangDummy) {
+				if (HaveAPBXCD_LangDummy) {
 #if 0
-						WriteAPBXCDobjlistelmp(APBospcLangRf,
-							0, WriteLProjFolderName);
+					WriteAPBXCDobjlistelmp(APBospcLangRf,
+						0, WriteLProjFolderName);
 #endif
-						WriteAPBXCDobjlistelmp(APBospcLangDummyRf,
-							0, WriteDummyLangFileName);
-					}
-				WriteAPBXCDEndObjList();
-				if (! HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsaGroup();
+					WriteAPBXCDobjlistelmp(APBospcLangDummyRf,
+						0, WriteDummyLangFileName);
 				}
-				WriteAPBXCDDObjAPropName(WriteStrResources);
-				WriteAPBXCDDObjAPropPathNull();
-				WriteAPBXCDDObjAPropRefType4();
-				WriteAPBXCDDObjAPropSourceTreeGroup();
-			WriteAPBXCDEndObject();
-		}
+			WriteAPBXCDEndObjList();
+			if (! HaveAPBXCD_IsaFirst) {
+				WriteAPBXCDDObjAPropIsaGroup();
+			}
+			WriteAPBXCDDObjAPropName(WriteStrResources);
+			WriteAPBXCDDObjAPropPathNull();
+			WriteAPBXCDDObjAPropRefType4();
+			WriteAPBXCDDObjAPropSourceTreeGroup();
+		WriteAPBXCDEndObject();
 
-		if (HaveFrameworks) {
-			WriteAPBXCDBeginObject(APBospcLibraries,
-				0, WriteStrFrameworksLibraries);
+		WriteAPBXCDBeginObject(APBospcLibraries,
+			0, WriteStrFrameworksLibraries);
 
-				if (HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsaGroup();
+			if (HaveAPBXCD_IsaFirst) {
+				WriteAPBXCDDObjAPropIsaGroup();
+			}
+
+			WriteAPBXCDBgnObjList("children");
+				DoAllFrameWorksWithSetup(
+					DoFrameworkAPBXCDaddToLibraries);
+				if (HaveAPBXCD_StdcLib) {
+					WriteAPBXCDobjlistelmp(APBospcLibStdcRf,
+						0, WriteLibStdcName);
 				}
-
-				WriteAPBXCDBgnObjList("children");
-					DoAllFrameWorksWithSetup(
-						DoFrameworkAPBXCDaddToLibraries);
-					if (HaveAPBXCD_StdcLib) {
-						WriteAPBXCDobjlistelmp(APBospcLibStdcRf,
-							0, WriteLibStdcName);
-					}
-				WriteAPBXCDEndObjList();
-				if (! HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsaGroup();
-				}
-				WriteAPBXCDDObjAPropName(
-					WriteStrQuoteFrameworksLibraries);
-				WriteAPBXCDDObjAPropPathNull();
-				WriteAPBXCDDObjAPropRefType4();
-				WriteAPBXCDDObjAPropSourceTreeGroup();
-			WriteAPBXCDEndObject();
-		}
+			WriteAPBXCDEndObjList();
+			if (! HaveAPBXCD_IsaFirst) {
+				WriteAPBXCDDObjAPropIsaGroup();
+			}
+			WriteAPBXCDDObjAPropName(
+				WriteStrQuoteFrameworksLibraries);
+			WriteAPBXCDDObjAPropPathNull();
+			WriteAPBXCDDObjAPropRefType4();
+			WriteAPBXCDDObjAPropSourceTreeGroup();
+		WriteAPBXCDEndObject();
 
 		WriteAPBXCDBeginObject(APBospcProducts, 0, WriteStrProducts);
 			if (HaveAPBXCD_IsaFirst) {
@@ -1650,14 +1499,10 @@ LOCALPROC WriteXCDProjectFile(void)
 					WriteAPBXCDobjlistelmp(APBospcIncludes,
 						0, WriteStrIncludes);
 				}
-				if (HaveMacBundleApp) {
-					WriteAPBXCDobjlistelmp(APBospcResources,
-						0, WriteStrResources);
-				}
-				if (HaveFrameworks) {
-					WriteAPBXCDobjlistelmp(APBospcLibraries,
-						0, WriteStrFrameworksLibraries);
-				}
+				WriteAPBXCDobjlistelmp(APBospcResources,
+					0, WriteStrResources);
+				WriteAPBXCDobjlistelmp(APBospcLibraries,
+					0, WriteStrFrameworksLibraries);
 				WriteAPBXCDobjlistelmp(APBospcProducts,
 					0, WriteStrProducts);
 			WriteAPBXCDEndObjList();
@@ -1747,18 +1592,12 @@ LOCALPROC WriteXCDProjectFile(void)
 					WriteAPBXCDobjlistelmp(APBospcHeaders,
 						0, WriteStrHeaders);
 				}
-				if (HaveMacBundleApp) {
-					WriteAPBXCDobjlistelmp(APBospcBunRsrcs,
-						0, WriteStrResources);
-				}
+				WriteAPBXCDobjlistelmp(APBospcBunRsrcs,
+					0, WriteStrResources);
 				WriteAPBXCDobjlistelmp(APBospcPhaseSrcs,
 					0, WriteStrSources);
 				WriteAPBXCDobjlistelmp(APBospcPhaseLibs,
 					0, WriteStrFrameworks);
-				if (HaveMacRrscs) {
-					WriteAPBXCDobjlistelmp(APBospcPhaseRsrc,
-						0, WriteStrRez);
-				}
 			WriteAPBXCDEndObjList();
 			if (ide_vers >= 1000) {
 				WriteAPBXCDBgnObjList("buildRules");
@@ -1804,17 +1643,11 @@ LOCALPROC WriteXCDProjectFile(void)
 				WriteAppNameStr);
 
 			if (ide_vers >= 1000) {
-				if (HaveMacBundleApp) {
-					WriteDestFileLn(
-						"productType = "
-						"\"com.apple.product-type.application\";");
-				} else {
-					WriteDestFileLn(
-						"productType = "
-						"\"com.apple.product-type.tool\";");
-				}
+				WriteDestFileLn(
+					"productType = "
+					"\"com.apple.product-type.application\";");
 			}
-			if ((! HaveAPBXCD_PlistFile) && HaveMacBundleApp) {
+			if (! HaveAPBXCD_PlistFile) {
 				WriteBgnDestFileLn();
 				WriteCStrToDestFile("productSettingsXML = ");
 				WriteQuoteToDestFile();
@@ -1909,51 +1742,29 @@ LOCALPROC WriteXCDProjectFile(void)
 		WriteAPBXCDEndObject();
 	DoEndSectionAPBXCD("PBXProject");
 
-	if (HaveMacBundleApp) {
-		DoBeginSectionAPBXCD("PBXResourcesBuildPhase");
-			WriteAPBXCDBeginObject(APBospcBunRsrcs,
-				0, WriteStrResources);
+	DoBeginSectionAPBXCD("PBXResourcesBuildPhase");
+		WriteAPBXCDBeginObject(APBospcBunRsrcs,
+			0, WriteStrResources);
 
-				if (HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsa("PBXResourcesBuildPhase");
-				}
+			if (HaveAPBXCD_IsaFirst) {
+				WriteAPBXCDDObjAPropIsa("PBXResourcesBuildPhase");
+			}
 
-				WriteDestFileLn("buildActionMask = 2147483647;");
-				WriteAPBXCDBgnObjList("files");
-					DoAllDocTypesWithSetup(
-						DoDocTypeAPBXCDaddToSources);
-					if (HaveAPBXCD_LangDummy) {
-						DoLangDummyAPBXCDaddToSources();
-					}
-				WriteAPBXCDEndObjList();
-				if (! HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsa("PBXResourcesBuildPhase");
+			WriteDestFileLn("buildActionMask = 2147483647;");
+			WriteAPBXCDBgnObjList("files");
+				DoAllDocTypesWithSetup(
+					DoDocTypeAPBXCDaddToSources);
+				if (HaveAPBXCD_LangDummy) {
+					DoLangDummyAPBXCDaddToSources();
 				}
-				WriteDestFileLn(
-					"runOnlyForDeploymentPostprocessing = 0;");
-			WriteAPBXCDEndObject();
-		DoEndSectionAPBXCD("PBXResourcesBuildPhase");
-	}
-	if (HaveMacRrscs) {
-		DoBeginSectionAPBXCD("PBXRezBuildPhase");
-			WriteAPBXCDBeginObject(APBospcPhaseRsrc, 0, WriteStrRez);
-				if (HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsa("PBXRezBuildPhase");
-				}
-
-				WriteDestFileLn("buildActionMask = 2147483647;");
-				WriteAPBXCDBgnObjList("files");
-					WriteAPBXCDobjlistelmp(APBospcMnRsrcBld, 0,
-						WriteMainAPBXCDRsrcNameinRez);
-				WriteAPBXCDEndObjList();
-				if (! HaveAPBXCD_IsaFirst) {
-					WriteAPBXCDDObjAPropIsa("PBXRezBuildPhase");
-				}
-				WriteDestFileLn(
-					"runOnlyForDeploymentPostprocessing = 0;");
-			WriteAPBXCDEndObject();
-		DoEndSectionAPBXCD("PBXRezBuildPhase");
-	}
+			WriteAPBXCDEndObjList();
+			if (! HaveAPBXCD_IsaFirst) {
+				WriteAPBXCDDObjAPropIsa("PBXResourcesBuildPhase");
+			}
+			WriteDestFileLn(
+				"runOnlyForDeploymentPostprocessing = 0;");
+		WriteAPBXCDEndObject();
+	DoEndSectionAPBXCD("PBXResourcesBuildPhase");
 
 	if (ide_vers < 1500) {
 		WriteAPBXCDBeginObject(APBospcHeaders, 0, WriteStrHeaders);
@@ -1989,12 +1800,10 @@ LOCALPROC WriteXCDProjectFile(void)
 		WriteAPBXCDEndObject();
 	DoEndSectionAPBXCD("PBXSourcesBuildPhase");
 
-	if (HaveMacBundleApp) {
-		if (HaveAPBXCD_LangDummy) {
-			DoBeginSectionAPBXCD("PBXVariantGroup");
-				DoLangDummyAPBXCDaddVariant();
-			DoEndSectionAPBXCD("PBXVariantGroup");
-		}
+	if (HaveAPBXCD_LangDummy) {
+		DoBeginSectionAPBXCD("PBXVariantGroup");
+			DoLangDummyAPBXCDaddVariant();
+		DoEndSectionAPBXCD("PBXVariantGroup");
 	}
 
 	if (ide_vers >= 2100) {
@@ -2107,18 +1916,16 @@ LOCALPROC WriteXCDSpecificFiles(void)
 		"project", ".pbxproj", "project file",
 		WriteXCDProjectFile);
 
-	if (HaveMacBundleApp) {
-		if (HaveAPBXCD_PlistFile) {
-			WritePListData();
-		}
-
-		MakeSubDirectory("my_lang_d", "my_config_d",
-			GetLProjName(gbo_lang), ".lproj");
-
-		WriteADstFile1("my_lang_d",
-			"dummy", ".txt", "Dummy",
-			WriteOutDummyLangContents);
+	if (HaveAPBXCD_PlistFile) {
+		WritePListData();
 	}
+
+	MakeSubDirectory("my_lang_d", "my_config_d",
+		GetLProjName(gbo_lang), ".lproj");
+
+	WriteADstFile1("my_lang_d",
+		"dummy", ".txt", "Dummy",
+		WriteOutDummyLangContents);
 
 	if (WantSandbox) {
 		WriteEntitlementsData();

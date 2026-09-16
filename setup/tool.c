@@ -51,23 +51,11 @@
 #include "SPFILDEF.i"
 
 #include "USFILDEF.i"
-#include "WRMACRES.i"
 #include "WRMPLIST.i"
 #include "WRCNFGGL.i"
 #include "WRCNFGAP.i"
 
-#include "WRMPWFLS.i"
-#include "WRMW8FLS.i"
-#include "WRMVCFLS.i"
-#include "WRBGCFLS.i"
-#include "WRSNCFLS.i"
-#include "WRMSCFLS.i"
-#include "WRLCCFLS.i"
-#include "WRDVCFLS.i"
 #include "WRXCDFLS.i"
-#include "WRDMCFLS.i"
-#include "WRPLCFLS.i"
-#include "WRCCCFLS.i"
 
 #ifdef Have_SPCNFGGL
 #include "SPCNFGGL.i"

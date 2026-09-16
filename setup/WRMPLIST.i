@@ -139,7 +139,7 @@ LOCALPROC WriteInfoPList(MyProc p)
 		"localhost/System/Library/DTDs/PropertyList.dtd\">");
 	WriteDestFileLn("<plist version=\"0.9\">");
 #else
-	if ((gbk_ide_xcd == cur_ide) && (ide_vers >= 3100)) {
+	if (ide_vers >= 3100) {
 		WriteDestFileLn(
 			"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\""
 			" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">");
@@ -155,20 +155,6 @@ LOCALPROC WriteInfoPList(MyProc p)
 	p();
 
 	WriteDestFileLn("</plist>");
-}
-
-LOCALPROC WriteMainPLC(MyProc p)
-{
-	CurPListFormat = kPListPLC;
-
-	WriteDestFileLn("plist");
-	WriteDestFileLn("{");
-	++DestFileIndent;
-
-	p();
-
-	--DestFileIndent;
-	WriteDestFileLn("}");
 }
 
 LOCALPROC WritepDtIconTypeName(void)
@@ -242,43 +228,20 @@ LOCALPROC WriteMyInfoPListContents(void)
 		WritePListKeyString("CFBundlePackageType", "APPL");
 		WritePListKeyProcString("CFBundleShortVersionString",
 			WriteVersionStr);
-		if (gbk_cpufam_a64 == gbo_cpufam) {
-			WritePListBeginKeyArray("CFBundleSupportedPlatforms");
-				WritePListString("MacOSX");
-			WritePListEndKeyArray();
-		}
+		WritePListBeginKeyArray("CFBundleSupportedPlatforms");
+			WritePListString("MacOSX");
+		WritePListEndKeyArray();
 		WritePListKeyProcString("CFBundleSignature",
 			Write_MacCreatorSigOrGeneric);
 		WritePListKeyProcString("CFBundleVersion", WriteVersionStr);
-		if (gbk_cpufam_a64 != gbo_cpufam) {
-			WritePListKeyString("LSRequiresCarbon", "1");
-		}
-		if (gbk_cpufam_a64 == gbo_cpufam) {
-			WritePListKeyString("LSMinimumSystemVersion", "10.15");
-		}
-		if (gbk_apifam_cco == gbo_apifam) {
-			WritePListKeyString("NSHighResolutionCapable", "1");
-		}
+		WritePListKeyString("LSMinimumSystemVersion", "10.15");
+		WritePListKeyString("NSHighResolutionCapable", "1");
 		if (WantGraphicsSwitching) {
 			WritePListKeyString("NSSupportsAutomaticGraphicsSwitching",
 				"1");
 		}
-		if (gbk_apifam_sd2 == gbo_apifam) {
-			WritePListKeyString("SDL_FILESYSTEM_BASE_DIR_TYPE",
-				"parent");
-		}
-		if (gbk_apifam_sd3 == gbo_apifam) {
-			WritePListKeyString("SDL_FILESYSTEM_BASE_DIR_TYPE",
-				"parent");
-		}
 
 	WritePListEndDict();
-}
-
-LOCALPROC WriteMainPLCData(void)
-{
-	/* plist source */
-	WriteMainPLC(WriteMyInfoPListContents);
 }
 
 LOCALPROC WriteInfoPListData(void)
@@ -289,11 +252,6 @@ LOCALPROC WriteInfoPListData(void)
 
 LOCALPROC WritePListData(void)
 {
-	if (gbk_ide_mw8 == cur_ide) {
-		WriteADstFile1("my_config_d",
-			"main", ".plc", "plist source",
-			WriteMainPLCData);
-	} else
 	{
 		WriteADstFile1("my_config_d",
 			"Info", ".plist", "plist source",

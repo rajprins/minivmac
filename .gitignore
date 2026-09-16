@@ -7,6 +7,12 @@
 /minivmac.app
 /minivmac.xcodeproj
 /build
+/setuptool
+/makefilegen
 /*.exe
 /*.ROM
 remove*
+
+# MacOS specific files
+.DS_Store
+

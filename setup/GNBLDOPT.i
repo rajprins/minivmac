@@ -35,10 +35,6 @@
 #define NeedIntFormatInfo 0
 #endif
 
-#ifndef ModPPCi3rTypes
-#define ModPPCi3rTypes 0
-#endif
-
 /* --- end of default definitions for SPBASDEF --- */
 
 LOCALVAR blnr OnlyUserOptions = falseblnr;
@@ -343,243 +339,53 @@ LOCALPROC WrtOptOfficialBin(void)
 
 /* option: target */
 
-enum {
-        gbk_targ_m68k, /* MacOS 68K */
-        gbk_targ_mfpu, /* MacOS 68K with FPU */
-        gbk_targ_mppc, /* MacOS OS 9 for PowerPC */
-        gbk_targ_mach, /* MacOS X Macho */
-        gbk_targ_imch, /* MacOS X Intel */
-        gbk_targ_mc64, /* MacOS X for x64 */
-        gbk_targ_mcar, /* MacOS X for Apple Silicon */
-        gbk_targ_wx86, /* Windows */
-        gbk_targ_wx64, /* Windows on x64 */
-        gbk_targ_lx86, /* X11 for linux on x86 */
-        gbk_targ_lppc, /* X11 for linux on PowerPC */
-        gbk_targ_lp64, /* X11 for linux on PowerPC64 */
-        gbk_targ_lx64, /* X11 for linux on x64 */
-        gbk_targ_larm, /* X11 for linux on arm (debian armel) */
-        gbk_targ_lspr, /* X11 for linux on SPARC */
-        gbk_targ_hx64, /* Haiku x64 */
-        gbk_targ_fbsd, /* FreeBSD for x86 */
-        gbk_targ_fb64, /* FreeBSD for x64 */
-        gbk_targ_fbpc, /* FreeBSD for PowerPC */
-        gbk_targ_obsd, /* OpenBSD for x86 */
-        gbk_targ_ob64, /* OpenBSD for x64 */
-        gbk_targ_nbsd, /* NetBSD for x86 */
-        gbk_targ_nb64, /* NetBSD for x64 */
-        gbk_targ_dbsd, /* Dragonfly BSD for x86 */
-        gbk_targ_db64, /* Dragonfly BSD for x64 */
-        gbk_targ_slrs, /* Solaris SPARC */
-        gbk_targ_sl86, /* Solaris Intel */
-        gbk_targ_oind, /* OpenIndiana for x86 */
-        gbk_targ_oi64, /* OpenIndiana for x64 */
-        gbk_targ_minx, /* Minix on x86 */
-        gbk_targ_wcar, /* Windows CE on ARM */
-        gbk_targ_wc86, /* Windows CE (emulator) on x86 */
-        gbk_targ_carb, /* MacOS Carbon lib for OS 9 and OS X */
-        gbk_targ_mx11, /* X11 for MacOS X PowerPC */
-        gbk_targ_mi11, /* X11 for MacOS X Intel */
-        gbk_targ_mx64, /* X11 for MacOS X x64 */
-        gbk_targ_cygw, /* Cygwin/X */
-        gbk_targ_xgen, /* Generic X11 */
-        gbk_targ_mdos, /* MS-DOS */
-        gbk_targ_ndsa, /* Nintendo DS on ARM  */
-        gbk_targ_irix, /* Silicon Graphics's IRIX on MIPS */
-        gbk_targ_port, /* Port (don't generate platform/compiler files) */
-        kNumTargets
-};
+/*
+	This program builds for exactly one host: 64 bit macOS on Apple
+	Silicon, which this build system has always called "mcar". The
+	option is still parsed, because the build scripts pass it and
+	because naming the target documents what is being built.
+*/
 
-LOCALVAR int cur_targ;
+#define kTargetName "mcar"
+
 LOCALVAR ui3r olv_targ;
 
 LOCALPROC ResetTargetOption(void)
 {
-	cur_targ = kListOptionAuto;
 	olv_targ = 0;
-}
-
-LOCALFUNC char * GetTargetName(int i)
-{
-	char *s;
-
-	switch (i) {
-		case gbk_targ_m68k:
-			s = "m68k";
-			break;
-		case gbk_targ_mfpu:
-			s = "mfpu";
-			break;
-		case gbk_targ_mppc:
-			s = "mppc";
-			break;
-		case gbk_targ_carb:
-			s = "carb";
-			break;
-		case gbk_targ_mach:
-			s = "mach";
-			break;
-		case gbk_targ_imch:
-			s = "imch";
-			break;
-		case gbk_targ_mc64:
-			s = "mc64";
-			break;
-		case gbk_targ_mcar:
-			s = "mcar";
-			break;
-		case gbk_targ_wx86:
-			s = "wx86";
-			break;
-		case gbk_targ_mx11:
-			s = "mx11";
-			break;
-		case gbk_targ_mi11:
-			s = "mi11";
-			break;
-		case gbk_targ_mx64:
-			s = "mx64";
-			break;
-		case gbk_targ_lx86:
-			s = "lx86";
-			break;
-		case gbk_targ_slrs:
-			s = "slrs";
-			break;
-		case gbk_targ_sl86:
-			s = "sl86";
-			break;
-		case gbk_targ_fbsd:
-			s = "fbsd";
-			break;
-		case gbk_targ_fb64:
-			s = "fb64";
-			break;
-		case gbk_targ_fbpc:
-			s = "fbpc";
-			break;
-		case gbk_targ_obsd:
-			s = "obsd";
-			break;
-		case gbk_targ_ob64:
-			s = "ob64";
-			break;
-		case gbk_targ_nbsd:
-			s = "nbsd";
-			break;
-		case gbk_targ_nb64:
-			s = "nb64";
-			break;
-		case gbk_targ_dbsd:
-			s = "dbsd";
-			break;
-		case gbk_targ_db64:
-			s = "db64";
-			break;
-		case gbk_targ_oind:
-			s = "oind";
-			break;
-		case gbk_targ_oi64:
-			s = "oi64";
-			break;
-		case gbk_targ_minx:
-			s = "minx";
-			break;
-		case gbk_targ_wcar:
-			s = "wcar";
-			break;
-		case gbk_targ_wc86:
-			s = "wc86";
-			break;
-		case gbk_targ_lppc:
-			s = "lppc";
-			break;
-		case gbk_targ_lp64:
-			s = "lp64";
-			break;
-		case gbk_targ_lx64:
-			s = "lx64";
-			break;
-                case gbk_targ_hx64:
-                        s = "hx64";
-                        break;
-		case gbk_targ_wx64:
-			s = "wx64";
-			break;
-		case gbk_targ_larm:
-			s = "larm";
-			break;
-		case gbk_targ_lspr:
-			s = "lspr";
-			break;
-		case gbk_targ_cygw:
-			s = "cygw";
-			break;
-		case gbk_targ_xgen:
-			s = "xgen";
-			break;
-		case gbk_targ_mdos:
-			s = "mdos";
-			break;
-		case gbk_targ_ndsa:
-			s = "ndsa";
-			break;
-		case gbk_targ_irix:
-			s = "irix";
-			break;
-		case gbk_targ_port:
-			s = "port";
-			break;
-		default:
-			s = "(unknown Target)";
-			break;
-	}
-	return s;
 }
 
 LOCALFUNC tMyErr TryAsTargetOptionNot(void)
 {
-	return FindNamedOption("-t", kNumTargets, GetTargetName,
-		&cur_targ, &olv_targ);
+	tMyErr err;
+
+	if (kMyErr_noErr != (err = CurArgIsOption("-t", &olv_targ))) {
+		/* no */
+	} else
+	if (The_arg_end) {
+		err = ReportParseFailure(
+			"Expecting an argument for -t when reached end");
+	} else
+	if (! CurArgIsCStr_v2(kTargetName)) {
+		err = ReportParseFailure("only '-t " kTargetName
+			"' (Apple Silicon macOS) is supported");
+	} else
+	{
+		err = AdvanceTheArg();
+	}
+
+	return err;
 }
 
 LOCALFUNC tMyErr ChooseTarg(void)
 {
 	tMyErr err;
 
-	if (kListOptionAuto == cur_targ) {
-		err = ReportParseFailure("target not specified ('-t' switch)");
+	if (0 == olv_targ) {
+		err = ReportParseFailure("target not specified ('-t "
+			kTargetName "')");
 	} else {
 		err = kMyErr_noErr;
-
-		if (CurOfficialBin) {
-			switch (cur_targ) {
-				case gbk_targ_mach:
-				case gbk_targ_lppc:
-				case gbk_targ_wx86:
-				case gbk_targ_lx86:
-				case gbk_targ_fbsd:
-				case gbk_targ_nbsd:
-				case gbk_targ_oind:
-				case gbk_targ_imch:
-				case gbk_targ_lspr:
-				case gbk_targ_wcar:
-				case gbk_targ_larm:
-				case gbk_targ_mc64:
-				case gbk_targ_lx64:
-                                case gbk_targ_hx64:
-				case gbk_targ_wx64:
-				case gbk_targ_fb64:
-				case gbk_targ_nb64:
-				case gbk_targ_oi64:
-				case gbk_targ_mcar:
-					/* ok */
-					break;
-				default:
-					err = ReportParseFailure(
-						"that target is not officially supported");
-					break;
-			}
-		}
 	}
 
 	return err;
@@ -590,7 +396,7 @@ LOCALPROC WrtOptTarg(void)
 	WriteCStrToDestFile(" ");
 	WriteCStrToDestFile("-t");
 	WriteCStrToDestFile(" ");
-	WriteCStrToDestFile(GetTargetName(cur_targ));
+	WriteCStrToDestFile(kTargetName);
 }
 
 
@@ -885,457 +691,55 @@ LOCALFUNC tMyErr TryAsTstBldSysErr(void)
 }
 
 
-/* option: target cpu family */
-
-enum {
-	gbk_cpufam_68k, /* Motorola 680x0 */
-	gbk_cpufam_ppc, /* PowerPC */
-	gbk_cpufam_x86, /* Intel 80x86 */
-	gbk_cpufam_spr, /* SPARC */
-	gbk_cpufam_arm, /* ARM */
-	gbk_cpufam_x64, /* x86-64 (aka AMD64, Intel 64) */
-	gbk_cpufam_mip, /* MIPS */
-	gbk_cpufam_gen, /* Generic (don't know) */
-	gbk_cpufam_a64, /* ARM64 */
-	gbk_cpufam_p64, /* PowerPC64 */
-	kNumCPUFamilies
-};
-
-LOCALVAR int gbo_cpufam;
-LOCALVAR ui3r olv_cpufam;
-
-LOCALPROC ResetCPUFamOption(void)
-{
-	gbo_cpufam = kListOptionAuto;
-	olv_cpufam = 0;
-}
-
-LOCALFUNC char * GetCPUFamName(int i)
-{
-	char *s;
-
-	switch (i) {
-		case gbk_cpufam_68k:
-			s = "68k";
-			break;
-		case gbk_cpufam_ppc:
-			s = "ppc";
-			break;
-		case gbk_cpufam_x86:
-			s = "x86";
-			break;
-		case gbk_cpufam_spr:
-			s = "spr";
-			break;
-		case gbk_cpufam_arm:
-			s = "arm";
-			break;
-		case gbk_cpufam_x64:
-			s = "x64";
-			break;
-		case gbk_cpufam_mip:
-			s = "mip";
-			break;
-		case gbk_cpufam_gen:
-			s = "gen";
-			break;
-		case gbk_cpufam_a64:
-			s = "a64";
-			break;
-		case gbk_cpufam_p64:
-			s = "p64";
-			break;
-		default:
-			s = "(unknown CPU)";
-			break;
-	}
-	return s;
-}
-
-LOCALFUNC tMyErr TryAsCPUFamOptionNot(void)
-{
-	return FindNamedOption("-cpu",
-		kNumCPUFamilies, GetCPUFamName, &gbo_cpufam, &olv_cpufam);
-}
-
-LOCALFUNC int dfo_cpufam(void)
-{
-	int v;
-
-	switch (cur_targ) {
-		case gbk_targ_m68k:
-		case gbk_targ_mfpu:
-			v = gbk_cpufam_68k;
-			break;
-		case gbk_targ_mppc:
-		case gbk_targ_carb:
-		case gbk_targ_mach:
-		case gbk_targ_mx11:
-		case gbk_targ_lppc:
-		case gbk_targ_fbpc:
-			v = gbk_cpufam_ppc;
-			break;
-		case gbk_targ_lp64:
-			v = gbk_cpufam_p64;
-			break;
-		case gbk_targ_wx86:
-		case gbk_targ_wc86:
-		case gbk_targ_lx86:
-		case gbk_targ_sl86:
-		case gbk_targ_fbsd:
-		case gbk_targ_obsd:
-		case gbk_targ_nbsd:
-		case gbk_targ_dbsd:
-		case gbk_targ_oind:
-		case gbk_targ_minx:
-		case gbk_targ_imch:
-		case gbk_targ_mi11:
-		case gbk_targ_mdos:
-		case gbk_targ_cygw:
-			v = gbk_cpufam_x86;
-			break;
-		case gbk_targ_lspr:
-		case gbk_targ_slrs:
-			v = gbk_cpufam_spr;
-			break;
-		case gbk_targ_wcar:
-		case gbk_targ_ndsa:
-		case gbk_targ_larm:
-			v = gbk_cpufam_arm;
-			break;
-		case gbk_targ_mc64:
-		case gbk_targ_lx64:
-                case gbk_targ_hx64:
-		case gbk_targ_wx64:
-		case gbk_targ_fb64:
-		case gbk_targ_ob64:
-		case gbk_targ_nb64:
-		case gbk_targ_db64:
-		case gbk_targ_oi64:
-		case gbk_targ_mx64:
-			v = gbk_cpufam_x64;
-			break;
-		case gbk_targ_mcar:
-			v = gbk_cpufam_a64;
-			break;
-		case gbk_targ_irix:
-			v = gbk_cpufam_mip;
-			break;
-		case gbk_targ_xgen:
-		case gbk_targ_port:
-			v = gbk_cpufam_gen;
-			break;
-	}
-
-	return v;
-}
-
-LOCALFUNC tMyErr ChooseCPUFam(void)
-{
-	if (kListOptionAuto == gbo_cpufam) {
-		gbo_cpufam = dfo_cpufam();
-	}
-
-	return kMyErr_noErr;
-}
-
-LOCALPROC WrtOptCPUFam(void)
-{
-	WrtOptNamedOption("-cpu", GetCPUFamName, gbo_cpufam, dfo_cpufam());
-}
-
-/* derived option: target family */
-
-enum {
-        gbk_targfam_cmac, /* Classic Mac */
-        gbk_targfam_mach, /* OS X Macho */
-        gbk_targfam_mswn, /* Microsoft Windows */
-        gbk_targfam_linx, /* Linux */
-        gbk_targfam_haik, /* Haiku */
-        gbk_targfam_fbsd, /* FreeBSD */
-        gbk_targfam_obsd, /* OpenBSD */
-        gbk_targfam_nbsd, /* NetBSD */
-        gbk_targfam_dbsd, /* Dragonfly BSD */
-        gbk_targfam_slrs, /* Solaris */
-        gbk_targfam_oind, /* OpenIndiana */
-        gbk_targfam_irix, /* Silicon Graphics's IRIX */
-        gbk_targfam_minx, /* Minix */
-        gbk_targfam_wnce, /* Windows CE */
-        gbk_targfam_carb, /* MacOS Carbon lib for OS 9 and OS X */
-        gbk_targfam_mx11, /* X11 for MacOS X */
-        gbk_targfam_cygw, /* Cygwin/X */
-        gbk_targfam_xgen, /* Generic X11 */
-        gbk_targfam_mdos, /* MS-DOS */
-        gbk_targfam_lnds, /* libnds for Nintendo DS */
-        gbk_targfam_port, /* don't generate platform/compiler files */
-        kNumTargFamilies
-};
-
-LOCALVAR int gbo_targfam;
-
-LOCALFUNC tMyErr ChooseTargFam(void)
-{
-	switch (cur_targ) {
-		case gbk_targ_m68k:
-		case gbk_targ_mfpu:
-		case gbk_targ_mppc:
-			gbo_targfam = gbk_targfam_cmac;
-			break;
-		case gbk_targ_mach:
-		case gbk_targ_imch:
-		case gbk_targ_mc64:
-		case gbk_targ_mcar:
-			gbo_targfam = gbk_targfam_mach;
-			break;
-		case gbk_targ_wx86:
-		case gbk_targ_wx64:
-			gbo_targfam = gbk_targfam_mswn;
-			break;
-                case gbk_targ_hx64:
-                        gbo_targfam = gbk_targfam_haik;
-                        break;
-		case gbk_targ_lx86:
-		case gbk_targ_lppc:
-		case gbk_targ_lp64:
-		case gbk_targ_lx64:
-		case gbk_targ_larm:
-		case gbk_targ_lspr:
-			gbo_targfam = gbk_targfam_linx;
-			break;
-		case gbk_targ_slrs:
-		case gbk_targ_sl86:
-			gbo_targfam = gbk_targfam_slrs;
-			break;
-		case gbk_targ_fbsd:
-		case gbk_targ_fb64:
-		case gbk_targ_fbpc:
-			gbo_targfam = gbk_targfam_fbsd;
-			break;
-		case gbk_targ_obsd:
-		case gbk_targ_ob64:
-			gbo_targfam = gbk_targfam_obsd;
-			break;
-		case gbk_targ_nbsd:
-		case gbk_targ_nb64:
-			gbo_targfam = gbk_targfam_nbsd;
-			break;
-		case gbk_targ_dbsd:
-		case gbk_targ_db64:
-			gbo_targfam = gbk_targfam_dbsd;
-			break;
-		case gbk_targ_oind:
-		case gbk_targ_oi64:
-			gbo_targfam = gbk_targfam_oind;
-			break;
-		case gbk_targ_minx:
-			gbo_targfam = gbk_targfam_minx;
-			break;
-		case gbk_targ_irix:
-			gbo_targfam = gbk_targfam_irix;
-			break;
-		case gbk_targ_wcar:
-		case gbk_targ_wc86:
-			gbo_targfam = gbk_targfam_wnce;
-			break;
-		case gbk_targ_carb:
-			gbo_targfam = gbk_targfam_carb;
-			break;
-		case gbk_targ_mx11:
-		case gbk_targ_mi11:
-		case gbk_targ_mx64:
-			gbo_targfam = gbk_targfam_mx11;
-			break;
-		case gbk_targ_cygw:
-			gbo_targfam = gbk_targfam_cygw;
-			break;
-		case gbk_targ_ndsa:
-			gbo_targfam = gbk_targfam_lnds;
-			break;
-		case gbk_targ_port:
-			gbo_targfam = gbk_targfam_port;
-			break;
-		case gbk_targ_mdos:
-			gbo_targfam = gbk_targfam_mdos;
-			break;
-		case gbk_targ_xgen:
-		default:
-			gbo_targfam = gbk_targfam_xgen;
-			break;	
-	}
-
-	return kMyErr_noErr;
-}
+/*
+	The host CPU family and target family used to be separate axes
+	derived from the target. With only "mcar" left there is nothing to
+	derive: the CPU is always ARM64 and the target family is always
+	Mach-O. The "-cpu" option is gone.
+*/
 
 
 /* option: ide */
 
-enum {
-	gbk_ide_mpw, /* Macintosh Programmers Workshop */
-	gbk_ide_mw8, /* Metrowerks CodeWarrior */
-	gbk_ide_bgc, /* Gnu tools */
-	gbk_ide_snc, /* Sun tools */
-	gbk_ide_msv, /* Microsoft Visual C++ */
-	gbk_ide_lcc, /* lcc-win32 - Jacob Navia */
-	gbk_ide_dvc, /* Bloodshed Dev-C++ */
-	gbk_ide_xcd, /* Apple XCode */
-		/* previously Apple Project Builder */
-	gbk_ide_dmc, /* Digital Mars Compiler */
-	gbk_ide_plc, /* Pelles C Compiler */
-	gbk_ide_mgw, /* MinGW */
-	gbk_ide_cyg, /* Cygwin */
-	gbk_ide_dkp, /* devkitpro */
-	gbk_ide_ccc, /* Generic command line c compiler */
-	gbk_ide_prt, /* Port */
-	gbk_ide_mvc, /* Mini vMac C (a specific version of gcc) */
-	kNumIdes
-};
+/*
+	Only Apple Xcode ("xcd") is supported. As with "-t", the option is
+	still parsed because the build scripts pass it.
+*/
 
-LOCALVAR int cur_ide;
+#define kIdeName "xcd"
+
 LOCALVAR ui3r olv_ide;
 
 LOCALPROC ResetIdeOption(void)
 {
-	cur_ide = kListOptionAuto;
 	olv_ide = 0;
-}
-
-LOCALFUNC char * GetIdeName(int i)
-{
-	char *s;
-
-	switch (i) {
-		case gbk_ide_mpw:
-			s = "mpw";
-			break;
-		case gbk_ide_mw8:
-			s = "mw8";
-			break;
-		case gbk_ide_bgc:
-			s = "bgc";
-			break;
-		case gbk_ide_snc:
-			s = "snc";
-			break;
-		case gbk_ide_msv:
-			s = "msv";
-			break;
-		case gbk_ide_lcc:
-			s = "lcc";
-			break;
-		case gbk_ide_dvc:
-			s = "dvc";
-			break;
-		case gbk_ide_mgw:
-			s = "mgw";
-			break;
-		case gbk_ide_xcd:
-			s = "xcd";
-			break;
-		case gbk_ide_dmc:
-			s = "dmc";
-			break;
-		case gbk_ide_plc:
-			s = "plc";
-			break;
-		case gbk_ide_cyg:
-			s = "cyg";
-			break;
-		case gbk_ide_dkp:
-			s = "dkp";
-			break;
-		case gbk_ide_ccc:
-			s = "ccc";
-			break;
-		case gbk_ide_prt:
-			s = "prt";
-			break;
-		case gbk_ide_mvc:
-			s = "mvc";
-			break;
-		default:
-			s = "(unknown IDE)";
-			break;
-	}
-	return s;
 }
 
 LOCALFUNC tMyErr TryAsIdeOptionNot(void)
 {
-	return FindNamedOption("-e",
-		kNumIdes, GetIdeName, &cur_ide, &olv_ide);
-}
+	tMyErr err;
 
-LOCALFUNC int dfo_ide(void)
-{
-	int v;
+	if (kMyErr_noErr != (err = CurArgIsOption("-e", &olv_ide))) {
+		/* no */
+	} else
+	if (The_arg_end) {
+		err = ReportParseFailure(
+			"Expecting an argument for -e when reached end");
+	} else
+	if (! CurArgIsCStr_v2(kIdeName)) {
+		err = ReportParseFailure("only '-e " kIdeName
+			"' (Apple Xcode) is supported");
+	} else
+	{
+		err = AdvanceTheArg();
+	}
 
-	if (CurOfficialBin) {
-		switch (cur_targ) {
-			case gbk_targ_mcar:
-				v = gbk_ide_xcd;
-				break;
-			default:
-				v = gbk_ide_mvc;
-				break;
-		}
-} else {
-        switch (gbo_targfam) {
-                case gbk_targfam_cmac:
-                case gbk_targfam_carb:
-                        v = gbk_ide_mpw;
-                        break;
-                case gbk_targfam_mach:
-                case gbk_targfam_mx11:
-                        v = gbk_ide_xcd;
-                        break;
-                case gbk_targfam_mswn:
-                case gbk_targfam_wnce:
-                        v = gbk_ide_msv;
-                        break;
-                case gbk_targfam_haik:
-                case gbk_targfam_linx:
-                case gbk_targfam_slrs:
-                case gbk_targfam_fbsd:
-                case gbk_targfam_obsd:
-                case gbk_targfam_nbsd:
-                case gbk_targfam_dbsd:
-                case gbk_targfam_oind:
-                case gbk_targfam_minx:
-                case gbk_targfam_mdos:
-                case gbk_targfam_irix:
-                        v = gbk_ide_bgc;
-                        break;
-                case gbk_targfam_cygw:
-                        v = gbk_ide_cyg;
-                        break;
-                case gbk_targfam_lnds:
-                        v = gbk_ide_dkp;
-                        break;
-                case gbk_targfam_port:
-                        v = gbk_ide_prt;
-                        break;
-                case gbk_targfam_xgen:
-                default:
-                        v = gbk_ide_ccc;
-                        break;
-                }
-        }
-
-        return v;
+	return err;
 }
 
 LOCALFUNC tMyErr ChooseIde(void)
 {
-        if (kListOptionAuto == cur_ide) {
-		cur_ide = dfo_ide();
-	}
-
-        return kMyErr_noErr;
-}
-
-LOCALPROC WrtOptIdeOption(void)
-{
-	WrtOptNamedOption("-e", GetIdeName, cur_ide, dfo_ide());
+	return kMyErr_noErr;
 }
 
 
@@ -1357,31 +761,24 @@ LOCALFUNC tMyErr TryAsIdeVersOptionNot(void)
 
 LOCALFUNC uimr dfo_ide_vers(void)
 {
-	uimr v;
-
-	switch (cur_ide) {
-		case gbk_ide_xcd:
-			if (gbk_targ_mcar == cur_targ) {
-				v = 12300;
-			} else {
-				v = 9410;
-			}
-			break;
-		case gbk_ide_msv:
-			v = 15000;
-			break;
-		default:
-			v = 1;
-			break;
-	}
-
-	return v;
+	return 12300; /* Xcode 12.3, the first with Apple Silicon support */
 }
 
 LOCALFUNC tMyErr ChooseIdeVers(void)
 {
 	if (0 == olv_ide_vers) {
 		ide_vers = dfo_ide_vers();
+	}
+
+	if (ide_vers < 12100) {
+		/*
+			Apple Silicon support arrived in Xcode 12.1, so nothing
+			older can build this. Enforcing the floor is what lets
+			the generator and OSGLUCCO.m both assume a modern SDK.
+		*/
+		return ReportParseFailure(
+			"-ev must be at least 12100 (Xcode 12.1),"
+			" the first with Apple Silicon support");
 	}
 
 	return kMyErr_noErr;
@@ -1393,259 +790,48 @@ LOCALPROC WrtOptIdeVers(void)
 }
 
 
-/* option: use command line tools */
-
-LOCALVAR blnr UseCmndLine;
-LOCALVAR ui3r olv_UseCmndLine;
-
-LOCALPROC ResetUseCmndLine(void)
-{
-	UseCmndLine = falseblnr;
-	olv_UseCmndLine = 0;
-}
-
-LOCALFUNC tMyErr TryAsUseCmndLineNot(void)
-{
-	return FlagTryAsOptionNot("-cl",
-		&UseCmndLine, &olv_UseCmndLine);
-}
-
-LOCALFUNC tMyErr ChooseUseCmndLine(void)
-{
-	if (! UseCmndLine) {
-		if (CurOfficialBin) {
-			UseCmndLine = trueblnr;
-		}
-	}
-
-	return kMyErr_noErr;
-}
-
-LOCALPROC WrtOptUseCmndLine(void)
-{
-	WrtOptFlagOption("-cl", UseCmndLine);
-}
-
-
-/* option: script language */
-
-/* cur_script defined in WRTEXTFL.i */
-
-LOCALVAR ui3r olv_script;
-
-LOCALPROC ResetScript(void)
-{
-	cur_script = kListOptionAuto;
-	olv_script = 0;
-}
-
-LOCALFUNC char * GetScriptName(int i)
-{
-	char *s;
-
-	switch (i) {
-		case gbk_script_mpw:
-			s = "mpw";
-			break;
-		case gbk_script_aps:
-			s = "aps";
-			break;
-		case gbk_script_bsh:
-			s = "bsh";
-			break;
-		case gbk_script_vbs:
-			s = "vbs";
-			break;
-		case gbk_script_xps:
-			s = "xps";
-			break;
-		default:
-			s = "(unknown Script)";
-			break;
-	}
-	return s;
-}
-
-LOCALFUNC tMyErr TryAsScriptOptionNot(void)
-{
-	return FindNamedOption("-scr",
-		kNumScripts, GetScriptName, &cur_script, &olv_script);
-}
-
-LOCALFUNC int dfo_script(void)
-{
-	int v;
-
-	if (gbk_ide_mpw == cur_ide) {
-		v = gbk_script_mpw;
-	} else {
-		v = gbk_script_bsh;
-	}
-
-	return v;
-}
-
-LOCALFUNC tMyErr ChooseScript(void)
-{
-	if (kListOptionAuto == cur_script) {
-		cur_script = dfo_script();
-	}
-
-	return kMyErr_noErr;
-}
-
-LOCALPROC WrtOptScriptOption(void)
-{
-	WrtOptNamedOption("-scr", GetScriptName, cur_script, dfo_script());
-}
-
-
 /* option: api family */
 
-enum {
-	gbk_apifam_mac,
-	gbk_apifam_osx,
-	gbk_apifam_win,
-	gbk_apifam_xwn,
-	gbk_apifam_dos,
-	gbk_apifam_nds,
-	gbk_apifam_gtk,
-	gbk_apifam_sdl,
-	gbk_apifam_sd2,
-	gbk_apifam_sd3,
-	gbk_apifam_cco,
-	gbk_apifam_prt,
-	kNumAPIFamilies
-};
+/*
+	Only the Cocoa backend ("cco", src/OSGLUCCO.m) remains. As with
+	"-t" and "-e", the option is still parsed because the build
+	scripts pass it.
+*/
 
-LOCALVAR int gbo_apifam;
+#define kAPIFamName "cco"
+
 LOCALVAR ui3r olv_apifam;
 
 LOCALPROC ResetAPIFamOption(void)
 {
-	gbo_apifam = kListOptionAuto;
 	olv_apifam = 0;
-}
-
-LOCALFUNC char * GetAPIFamName(int i)
-{
-	char *s;
-
-	switch (i) {
-		case gbk_apifam_mac:
-			s = "mac";
-			break;
-		case gbk_apifam_osx:
-			s = "osx";
-			break;
-		case gbk_apifam_win:
-			s = "win";
-			break;
-		case gbk_apifam_xwn:
-			s = "xwn";
-			break;
-		case gbk_apifam_dos:
-			s = "dos";
-			break;
-		case gbk_apifam_nds:
-			s = "nds";
-			break;
-		case gbk_apifam_gtk:
-			s = "gtk";
-			break;
-		case gbk_apifam_sdl:
-			s = "sdl";
-			break;
-		case gbk_apifam_sd2:
-			s = "sd2";
-			break;
-		case gbk_apifam_sd3:
-			s = "sd3";
-			break;
-		case gbk_apifam_cco:
-			s = "cco";
-			break;
-		case gbk_apifam_prt:
-			s = "prt";
-			break;
-		default:
-			s = "(unknown API)";
-			break;
-	}
-	return s;
 }
 
 LOCALFUNC tMyErr TryAsAPIFamOptionNot(void)
 {
-	return FindNamedOption("-api",
-		kNumAPIFamilies, GetAPIFamName, &gbo_apifam, &olv_apifam);
-}
+	tMyErr err;
 
-LOCALFUNC int dfo_apifam(void)
-{
-	int v;
-
-	switch (gbo_targfam) {
-		case gbk_targfam_cmac:
-			v = gbk_apifam_mac;
-			break;
-		case gbk_targfam_mach:
-		case gbk_targfam_carb:
-			if ((gbk_cpufam_x64 == gbo_cpufam)
-				|| (gbk_cpufam_a64 == gbo_cpufam))
-			{
-				v = gbk_apifam_cco;
-			} else {
-				v = gbk_apifam_osx;
-			}
-			break;
-                case gbk_targfam_haik:
-                        v = gbk_apifam_sd2;
-                        break;
-		case gbk_targfam_mswn:
-		case gbk_targfam_wnce:
-			v = gbk_apifam_win;
-			break;
-		case gbk_targfam_linx:
-		case gbk_targfam_slrs:
-		case gbk_targfam_fbsd:
-		case gbk_targfam_obsd:
-		case gbk_targfam_nbsd:
-		case gbk_targfam_dbsd:
-		case gbk_targfam_oind:
-		case gbk_targfam_minx:
-		case gbk_targfam_irix:
-		case gbk_targfam_mx11:
-		case gbk_targfam_cygw:
-		case gbk_targfam_xgen:
-			v = gbk_apifam_xwn;
-			break;
-		case gbk_targfam_mdos:
-			v = gbk_apifam_dos;
-			break;
-		case gbk_targfam_port:
-			v = gbk_apifam_prt;
-			break;
-		case gbk_targfam_lnds:
-			v = gbk_apifam_nds;
-			break;
+	if (kMyErr_noErr != (err = CurArgIsOption("-api", &olv_apifam))) {
+		/* no */
+	} else
+	if (The_arg_end) {
+		err = ReportParseFailure(
+			"Expecting an argument for -api when reached end");
+	} else
+	if (! CurArgIsCStr_v2(kAPIFamName)) {
+		err = ReportParseFailure("only '-api " kAPIFamName
+			"' (Cocoa) is supported");
+	} else
+	{
+		err = AdvanceTheArg();
 	}
 
-	return v;
+	return err;
 }
 
 LOCALFUNC tMyErr ChooseAPIFam(void)
 {
-	if (kListOptionAuto == gbo_apifam) {
-		gbo_apifam = dfo_apifam();
-	}
-
 	return kMyErr_noErr;
-}
-
-LOCALPROC WrtOptAPIFam(void)
-{
-	WrtOptNamedOption("-api", GetAPIFamName, gbo_apifam, dfo_apifam());
 }
 
 
@@ -1883,43 +1069,13 @@ LOCALFUNC tMyErr ChooseHomePage(void)
 }
 
 
-/* derived option: application is os x bundle (folder) */
-
-LOCALVAR blnr HaveMacBundleApp;
-LOCALVAR blnr WantUnTranslocate;
-
-LOCALFUNC tMyErr ChooseHaveMacBundleApp(void)
-{
-	HaveMacBundleApp = (gbk_targfam_mach == gbo_targfam)
-		|| ((gbk_targfam_carb == gbo_targfam)
-			&& (gbk_ide_mpw == cur_ide));
-#if 0
-	WantUnTranslocate = (gbk_apifam_cco == gbo_apifam)
-		&& ((gbk_cpufam_x64 == gbo_cpufam)
-			|| (gbk_cpufam_x86 == gbo_cpufam));
-#else
-	WantUnTranslocate = falseblnr;
-		/*
-			on second thought, probably not a good
-			idea to use undocumented calls.
-		*/
-#endif
-
-	return kMyErr_noErr;
-}
-
-/* derived option: have macintosh resources */
-
-LOCALVAR blnr HaveMacRrscs;
-
-LOCALFUNC tMyErr ChooseHaveMacRrscs(void)
-{
-	HaveMacRrscs = (gbk_apifam_mac == gbo_apifam)
-		|| ((gbk_targfam_carb == gbo_targfam)
-			&& ! (gbk_ide_mpw == cur_ide));
-
-	return kMyErr_noErr;
-}
+/*
+	The application is always a Mach-O bundle (.app folder), and never
+	has classic Macintosh resource-fork resources, so what used to be
+	the derived HaveMacBundleApp and HaveMacRrscs flags are now
+	constants. WantUnTranslocate was already hard-wired off, because
+	it needed undocumented calls.
+*/
 
 
 /* option: Abbrev Name */
@@ -2172,12 +1328,9 @@ LOCALPROC WrtOptGNSettings(void)
 
 LOCALPROC GNDevResetCommandLineParameters(void)
 {
-	ResetCPUFamOption();
 	ResetOfficialBin();
 	ResetIdeOption();
 	ResetIdeVersOption();
-	ResetUseCmndLine();
-	ResetScript();
 	ResetAPIFamOption();
 	ResetListOption();
 	ResetUseAllFiles();
@@ -2198,12 +1351,9 @@ LOCALFUNC tMyErr TryAsGNDevOptionNot(void)
 
 	DoingDevOpts = trueblnr;
 
-	if (kMyErrNoMatch == (err = TryAsCPUFamOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsOfficialBinNot()))
 	if (kMyErrNoMatch == (err = TryAsIdeOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsIdeVersOptionNot()))
-	if (kMyErrNoMatch == (err = TryAsUseCmndLineNot()))
-	if (kMyErrNoMatch == (err = TryAsScriptOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsAPIFamOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsListOptionNot()))
 	if (kMyErrNoMatch == (err = TryAsUseAllFilesNot()))
@@ -2228,13 +1378,9 @@ LOCALFUNC tMyErr AutoChooseGNDevSettings(void)
 {
 	tMyErr err;
 
-	if (kMyErr_noErr == (err = ChooseCPUFam()))
-	if (kMyErr_noErr == (err = ChooseTargFam())) /* derived */
 	if (kMyErr_noErr == (err = ChooseOfficialBin()))
 	if (kMyErr_noErr == (err = ChooseIde()))
 	if (kMyErr_noErr == (err = ChooseIdeVers()))
-	if (kMyErr_noErr == (err = ChooseUseCmndLine()))
-	if (kMyErr_noErr == (err = ChooseScript()))
 	if (kMyErr_noErr == (err = ChooseAPIFam()))
 	if (kMyErr_noErr == (err = ChooseListOption()))
 	if (kMyErr_noErr == (err = ChooseUseAllFilesNot()))
@@ -2242,8 +1388,6 @@ LOCALFUNC tMyErr AutoChooseGNDevSettings(void)
 	if (kMyErr_noErr == (err = ChoosePrintVarOpts()))
 	if (kMyErr_noErr == (err = ChooseMaintainerName()))
 	if (kMyErr_noErr == (err = ChooseHomePage()))
-	if (kMyErr_noErr == (err = ChooseHaveMacBundleApp())) /* derived */
-	if (kMyErr_noErr == (err = ChooseHaveMacRrscs())) /* derived */
 	if (kMyErr_noErr == (err = ChooseAbbrevName()))
 	if (kMyErr_noErr == (err = ChooseVariationName()))
 	if (kMyErr_noErr == (err = ChooseNeedIntl()))
@@ -2259,13 +1403,8 @@ LOCALFUNC tMyErr AutoChooseGNDevSettings(void)
 #if 0
 LOCALPROC WrtOptGNDevSettings(void)
 {
-	WrtOptCPUFam();
 	WrtOptOfficialBin();
-	WrtOptIdeOption();
 	WrtOptIdeVers();
-	WrtOptUseCmndLine();
-	WrtOptScriptOption();
-	WrtOptAPIFam();
 	WrtOptListOption();
 	WrtOptUseAllFiles();
 	WrtOptPrintVarName();

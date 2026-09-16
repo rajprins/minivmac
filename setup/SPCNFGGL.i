@@ -41,26 +41,15 @@ LOCALPROC WriteAppSpecificCNFUDALLoptions(void)
 
 	WriteCompCondBool("NonDiskProtect", NonDiskProtect);
 
-	WriteCompCondBool("IncludeSonyRawMode", (! WantMinExtn)
-		&& (gbk_apifam_nds != gbo_apifam));
-	WriteCompCondBool("IncludeSonyGetName",
-		(! WantMinExtn) && (gbk_apifam_gtk != gbo_apifam)
-		&& (gbk_apifam_nds != gbo_apifam)
-		&& (gbk_apifam_sdl != gbo_apifam)
-		&& (gbk_apifam_sd2 != gbo_apifam)
-		&& (gbk_apifam_sd3 != gbo_apifam));
-	WriteCompCondBool("IncludeSonyNew",
-		(! WantMinExtn) && (gbk_apifam_gtk != gbo_apifam)
-		&& (gbk_apifam_sdl != gbo_apifam)
-		&& (gbk_apifam_sd2 != gbo_apifam)
-		&& (gbk_apifam_sd3 != gbo_apifam)
-		&& (gbk_apifam_nds != gbo_apifam));
-	WriteCompCondBool("IncludeSonyNameNew",
-		(! WantMinExtn) && (gbk_apifam_gtk != gbo_apifam)
-		&& (gbk_apifam_sdl != gbo_apifam)
-		&& (gbk_apifam_sd2 != gbo_apifam)
-		&& (gbk_apifam_sd3 != gbo_apifam)
-		&& (gbk_apifam_nds != gbo_apifam));
+	/*
+		The Sony disk extensions used to be switched off for the
+		backends that could not present a file dialog (gtk, nds, sdl).
+		Cocoa can, so they depend only on -min-extn.
+	*/
+	WriteCompCondBool("IncludeSonyRawMode", ! WantMinExtn);
+	WriteCompCondBool("IncludeSonyGetName", ! WantMinExtn);
+	WriteCompCondBool("IncludeSonyNew", ! WantMinExtn);
+	WriteCompCondBool("IncludeSonyNameNew", ! WantMinExtn);
 
 	WriteBlankLineToDestFile();
 
@@ -80,10 +69,7 @@ LOCALPROC WriteAppSpecificCNFUDALLoptions(void)
 
 	WriteBlankLineToDestFile();
 
-	WriteCompCondBool("IncludePbufs",
-		1 /* ((! WantMinExtn) || WantActvCode || WantDemoMsg) */
-			&& (gbk_apifam_gtk != gbo_apifam)
-			&& (gbk_apifam_nds != gbo_apifam));
+	WriteCompCondBool("IncludePbufs", trueblnr);
 
 	WriteDefineUimr("NumPbufs", 4);
 
@@ -94,12 +80,7 @@ LOCALPROC WriteAppSpecificCNFUDALLoptions(void)
 
 	WriteBlankLineToDestFile();
 
-	WriteCompCondBool("IncludeHostTextClipExchange",
-		1 /* ((! WantMinExtn) || WantActvCode || WantDemoMsg) */
-			&& (gbk_apifam_gtk != gbo_apifam)
-			&& (gbk_apifam_sdl != gbo_apifam)
-			&& (gbk_apifam_nds != gbo_apifam)
-			&& (gbk_apifam_dos != gbo_apifam));
+	WriteCompCondBool("IncludeHostTextClipExchange", trueblnr);
 
 	WriteDestFileLn("#define EnableAutoSlow 1");
 	WriteCompCondBool("EmLocalTalk", WantLocalTalk);

@@ -17,10 +17,6 @@
 	USe program SPecific FILe DEFinitions
 */
 
-LOCALPROC NullProc(void)
-{
-}
-
 LOCALVAR unsigned int FileCounter;
 
 struct DoSrcFile_r
@@ -156,27 +152,6 @@ LOCALPROC WriteSrcFileHeaderPath(void)
 		WriteSrcFileHeaderName);
 }
 
-LOCALPROC WriteSrcFileObjName(void)
-{
-	WriteCStrToDestFile(DoSrcFile_gd()->s);
-	switch (cur_ide) {
-		case gbk_ide_msv:
-		case gbk_ide_dmc:
-		case gbk_ide_plc:
-			WriteCStrToDestFile(".obj");
-			break;
-		default:
-			WriteCStrToDestFile(".o");
-			break;
-	}
-}
-
-LOCALPROC WriteSrcFileObjPath(void)
-{
-	WriteFileInDirToDestFile0(Write_obj_d_ToDestFile,
-		WriteSrcFileObjName);
-}
-
 LOCALPROC DoAllExtraHeaders2WithSetupProc(
 	char *s, int DepDir, long Flgm, tDoDependsForC depends)
 {
@@ -285,19 +260,7 @@ LOCALPROC WriteDocTypeIconFileName(void)
 {
 	WriteCStrToDestFile("ICON");
 	WriteDocTypeIconShortName();
-	switch (gbo_targfam) {
-		case gbk_targfam_cmac:
-			WriteCStrToDestFile("M.r");
-			break;
-		case gbk_targfam_mach:
-		case gbk_targfam_carb:
-			WriteCStrToDestFile("O.icns");
-			break;
-		case gbk_targfam_mswn:
-		case gbk_targfam_wnce:
-			WriteCStrToDestFile("W.ico");
-			break;
-	}
+	WriteCStrToDestFile("O.icns");
 }
 
 LOCALPROC WriteDocTypeIconFilePath(void)
@@ -311,29 +274,15 @@ LOCALPROC WriteDocTypeIconMacType(void)
 	WriteCStrToDestFile(DoDocType_gd()->MacType);
 }
 
-LOCALPROC WriteDocTypeCopyMachoFile(void)
-{
-	WriteCopyFile(WriteDocTypeIconFilePath,
-		Write_tmachores_d_ToDestFile);
-}
-
 typedef void (*tWriteOneFrameWorkType)(char *s);
 
 static void DoAllFrameWorks(tWriteOneFrameWorkType p)
 {
-	if (gbk_apifam_cco == gbo_apifam) {
-		p("AppKit");
-		p("AudioUnit");
+	p("AppKit");
+	p("AudioUnit");
 #if UseOpenGLinOSX
-		p("OpenGL");
+	p("OpenGL");
 #endif
-	} else {
-		p("Carbon");
-#if UseOpenGLinOSX
-		p("OpenGL");
-		p("AGL");
-#endif
-	}
 }
 
 struct DoFrameWork_r
@@ -401,99 +350,4 @@ LOCALPROC WriteCFilesList(void)
 	WriteADstFile1("my_project_d",
 		"c_files", "", "list of c files",
 		WriteCFilesListContents);
-}
-
-LOCALPROC Write_tmachoShell(void)
-{
-	WriteRmDir(WriteAppNamePath);
-	WriteRmDir(Write_tmachobun_d_ToDestFile);
-	WriteMkDir(Write_tmachobun_d_ToDestFile);
-	WriteMkDir(Write_tmachocontents_d_ToDestFile);
-	WriteMkDir(Write_tmachomac_d_ToDestFile);
-	WriteMkDir(Write_tmachores_d_ToDestFile);
-	WriteMkDir(Write_tmacholang_d_ToDestFile);
-	DoAllDocTypesWithSetup(WriteDocTypeCopyMachoFile);
-	WriteCopyFile(WriteInfoPlistFilePath,
-		Write_tmachocontents_d_ToDestFile);
-	WriteEchoToNewFile(Write_tmachoLangDummyContents,
-		Write_tmachoLangDummyPath, trueblnr);
-	WriteEchoToNewFile(Write_tmachoPkgInfoContents,
-		Write_tmachoPkgInfoPath, falseblnr);
-	WriteMoveDir(Write_tmachobun_d_ToDestFile, WriteAppNamePath);
-}
-
-LOCALPROC Write_tmachoShellDeps(void)
-{
-	WriteMakeDependFile(Write_srcAppIconPath);
-}
-
-LOCALPROC WritepDtSrcPath(void)
-{
-	WriteFileInDirToDestFile0(Write_src_d_ToDestFile, WritepDtString);
-}
-
-LOCALPROC WritepDtCfgPath(void)
-{
-	WriteFileInDirToDestFile0(Write_cfg_d_ToDestFile, WritepDtString);
-}
-
-LOCALPROC DoSrcDependsMakeCompile(int DepDir, char *s)
-{
-	MyPtr SavepDt = pDt;
-	pDt = (MyPtr)s;
-	WriteMakeDependFile((kDepDirCnfg == DepDir)
-		? WritepDtCfgPath
-		: WritepDtSrcPath);
-	pDt = SavepDt;
-}
-
-LOCALPROC DoSrcFileMakeCompileDeps(void)
-{
-	WriteMakeDependFile(WriteSrcFileFilePath);
-	if (DoSrcFile_gd()->depends != nullpr) {
-		DoSrcFile_gd()->depends(DoSrcDependsMakeCompile);
-	}
-/*
-	WriteMakeDependFile(WriteCNFUIALLPath);
-*/
-}
-
-LOCALPROC DoSrcFileMakeCompileBody(void)
-{
-	blnr UseAPI = (DoSrcFile_gd()->Flgm & kCSrcFlgmUseAPI) != 0;
-	blnr Fast = (DoSrcFile_gd()->Flgm & kCSrcFlgmSortFirst) != 0;
-
-	WriteCompileC(WriteSrcFileFilePath, WriteSrcFileObjPath,
-		UseAPI, Fast);
-}
-
-LOCALPROC DoSrcFileMakeCompile(void)
-{
-	WriteMakeRule(WriteSrcFileObjPath,
-		DoSrcFileMakeCompileDeps,
-		DoSrcFileMakeCompileBody);
-}
-
-LOCALPROC DoSrcFileStandardMakeObjects(void)
-{
-	WriteBgnDestFileLn();
-	WriteSrcFileObjPath();
-	WriteSpaceToDestFile();
-	WriteBackSlashToDestFile();
-	WriteEndDestFileLn();
-}
-
-LOCALPROC DoAllSrcFilesStandardMakeObjects(void)
-{
-	DoAllSrcFilesSortWithSetup(DoSrcFileStandardMakeObjects);
-}
-
-LOCALPROC DoSrcFileStandardEraseFile(void)
-{
-	WriteRmFile(WriteSrcFileObjPath);
-}
-
-LOCALPROC DoAllSrcFilesStandardErase(void)
-{
-	DoAllSrcFilesWithSetup(DoSrcFileStandardEraseFile);
 }
