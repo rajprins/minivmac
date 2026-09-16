@@ -32,351 +32,19 @@
 /* --- adapting to API/ABI version differences --- */
 
 
-#ifndef MAC_OS_X_VERSION_10_5
-#define MAC_OS_X_VERSION_10_5 1050
-#endif
-
-#ifndef MAC_OS_X_VERSION_10_6
-#define MAC_OS_X_VERSION_10_6 1060
-#endif
-
-
 #ifndef WantGraphicsSwitching
 #define WantGraphicsSwitching 0
 #endif
 
-#if MAC_OS_X_VERSION_10_5 > MAC_OS_X_VERSION_MAX_ALLOWED
+/*
+	Everything that used to be looked up dynamically through CFBundle
+	here -- CFURLCopyResourcePropertyForKey, kCFURLIsAliasFileKey,
+	kCFURLIsSymbolicLinkKey, CFURLCreateBookmarkDataFromFile,
+	CFURLCreateByResolvingBookmarkData, CGCursorIsVisible and
+	SetSystemUIMode -- predates the macOS 11 floor of Apple Silicon,
+	so it is now called directly.
+*/
 
-typedef unsigned long NSUInteger;
-typedef long NSInteger;
-
-typedef struct __CFError * CFErrorRef;
-
-#if WantGraphicsSwitching
-#define NSOpenGLPFAAllowOfflineRenderers \
-	(NSOpenGLPixelFormatAttribute)96
-#endif
-
-#endif
-
-#if MAC_OS_X_VERSION_10_6 > MAC_OS_X_VERSION_MAX_ALLOWED
-
-@protocol NSWindowDelegate <NSObject> @end
-@protocol NSApplicationDelegate <NSObject> @end
-
-#endif
-
-
-LOCALVAR CFBundleRef AppServBunRef;
-
-LOCALVAR blnr DidApplicationServicesBun = falseblnr;
-
-LOCALFUNC blnr HaveApplicationServicesBun(void)
-{
-	if (! DidApplicationServicesBun) {
-		AppServBunRef = CFBundleGetBundleWithIdentifier(
-			CFSTR("com.apple.ApplicationServices"));
-		DidApplicationServicesBun = trueblnr;
-	}
-	return (AppServBunRef != NULL);
-}
-
-#if MayFullScreen
-
-LOCALVAR CFBundleRef HIToolboxBunRef;
-
-LOCALVAR blnr DidHIToolboxBunRef = falseblnr;
-
-LOCALFUNC blnr HaveHIToolboxBunRef(void)
-{
-	if (! DidHIToolboxBunRef) {
-		HIToolboxBunRef = CFBundleGetBundleWithIdentifier(
-			CFSTR("com.apple.HIToolbox"));
-		DidHIToolboxBunRef = trueblnr;
-	}
-	return (HIToolboxBunRef != NULL);
-}
-
-#endif
-
-
-#if MayFullScreen
-
-/* SetSystemUIModeProcPtr API always not available */
-
-typedef UInt32                          MySystemUIMode;
-typedef OptionBits                      MySystemUIOptions;
-
-enum {
-	MykUIModeNormal                 = 0,
-	MykUIModeAllHidden              = 3
-};
-
-enum {
-	MykUIOptionAutoShowMenuBar      = 1 << 0,
-	MykUIOptionDisableAppleMenu     = 1 << 2,
-	MykUIOptionDisableProcessSwitch = 1 << 3,
-	MykUIOptionDisableForceQuit     = 1 << 4,
-	MykUIOptionDisableSessionTerminate = 1 << 5,
-	MykUIOptionDisableHide          = 1 << 6
-};
-
-typedef OSStatus (*SetSystemUIModeProcPtr)
-	(MySystemUIMode inMode, MySystemUIOptions inOptions);
-LOCALVAR SetSystemUIModeProcPtr MySetSystemUIMode = NULL;
-LOCALVAR blnr DidSetSystemUIMode = falseblnr;
-
-LOCALFUNC blnr HaveMySetSystemUIMode(void)
-{
-	if (! DidSetSystemUIMode) {
-		if (HaveHIToolboxBunRef()) {
-			MySetSystemUIMode =
-				(SetSystemUIModeProcPtr)
-				CFBundleGetFunctionPointerForName(
-					HIToolboxBunRef, CFSTR("SetSystemUIMode"));
-		}
-		DidSetSystemUIMode = trueblnr;
-	}
-	return (MySetSystemUIMode != NULL);
-}
-
-#endif
-
-
-typedef Boolean (*CFURLCopyResourcePropertyForKeyProcPtr) (
-	CFURLRef    url,
-	CFStringRef key,
-	void        *propertyValueTypeRefPtr,
-	CFErrorRef  *error
-	);
-LOCALVAR CFURLCopyResourcePropertyForKeyProcPtr
-	MyCFURLCopyResourcePropertyForKey = NULL;
-LOCALVAR blnr DidCFURLCopyResourcePropertyForKey = falseblnr;
-
-LOCALFUNC blnr HaveMyCFURLCopyResourcePropertyForKey(void)
-{
-	if (! DidCFURLCopyResourcePropertyForKey) {
-		if (HaveApplicationServicesBun()) {
-			MyCFURLCopyResourcePropertyForKey =
-				(CFURLCopyResourcePropertyForKeyProcPtr)
-				CFBundleGetFunctionPointerForName(
-					AppServBunRef,
-					CFSTR("CFURLCopyResourcePropertyForKey"));
-		}
-		DidCFURLCopyResourcePropertyForKey = trueblnr;
-	}
-	return (MyCFURLCopyResourcePropertyForKey != NULL);
-}
-
-
-LOCALVAR const CFStringRef *MykCFURLIsAliasFileKey
-	= NULL;
-LOCALVAR blnr DidkCFURLIsAliasFileKey = falseblnr;
-
-LOCALFUNC blnr HaveMykCFURLIsAliasFileKey(void)
-{
-	if (! DidkCFURLIsAliasFileKey) {
-		if (HaveApplicationServicesBun()) {
-			MykCFURLIsAliasFileKey =
-				(const CFStringRef *)
-				CFBundleGetDataPointerForName(
-					AppServBunRef, CFSTR("kCFURLIsAliasFileKey"));
-		}
-		DidkCFURLIsAliasFileKey = trueblnr;
-	}
-	return (MykCFURLIsAliasFileKey != NULL);
-}
-
-
-LOCALVAR const CFStringRef *MykCFURLIsSymbolicLinkKey
-	= NULL;
-LOCALVAR blnr DidkCFURLIsSymbolicLinkKey = falseblnr;
-
-LOCALFUNC blnr HaveMykCFURLIsSymbolicLinkKey(void)
-{
-	if (! DidkCFURLIsSymbolicLinkKey) {
-		if (HaveApplicationServicesBun()) {
-			MykCFURLIsSymbolicLinkKey =
-				(const CFStringRef *)
-				CFBundleGetDataPointerForName(
-					AppServBunRef, CFSTR("kCFURLIsSymbolicLinkKey"));
-		}
-		DidkCFURLIsSymbolicLinkKey = trueblnr;
-	}
-	return (MykCFURLIsSymbolicLinkKey != NULL);
-}
-
-
-typedef CFDataRef (*CFURLCreateBookmarkDataFromFileProcPtr) (
-	CFAllocatorRef allocator, CFURLRef fileURL, CFErrorRef *errorRef);
-LOCALVAR CFURLCreateBookmarkDataFromFileProcPtr
-	MyCFURLCreateBookmarkDataFromFile = NULL;
-LOCALVAR blnr DidCFURLCreateBookmarkDataFromFile = falseblnr;
-
-LOCALFUNC blnr HaveMyCFURLCreateBookmarkDataFromFile(void)
-{
-	if (! DidCFURLCreateBookmarkDataFromFile) {
-		if (HaveApplicationServicesBun()) {
-			MyCFURLCreateBookmarkDataFromFile =
-				(CFURLCreateBookmarkDataFromFileProcPtr)
-				CFBundleGetFunctionPointerForName(AppServBunRef,
-					CFSTR("CFURLCreateBookmarkDataFromFile"));
-		}
-		DidCFURLCreateBookmarkDataFromFile = trueblnr;
-	}
-	return (MyCFURLCreateBookmarkDataFromFile != NULL);
-}
-
-
-typedef CFOptionFlags MyCFURLBookmarkResolutionOptions;
-
-typedef CFURLRef (*CFURLCreateByResolvingBookmarkDataProcPtr) (
-	CFAllocatorRef allocator, CFDataRef bookmark,
-	MyCFURLBookmarkResolutionOptions options, CFURLRef relativeToURL,
-	CFArrayRef resourcePropertiesToInclude,
-	Boolean* isStale, CFErrorRef* error);
-LOCALVAR CFURLCreateByResolvingBookmarkDataProcPtr
-	MyCFURLCreateByResolvingBookmarkData = NULL;
-LOCALVAR blnr DidCFURLCreateByResolvingBookmarkData = falseblnr;
-
-LOCALFUNC blnr HaveMyCFURLCreateByResolvingBookmarkData(void)
-{
-	if (! DidCFURLCreateByResolvingBookmarkData) {
-		if (HaveApplicationServicesBun()) {
-			MyCFURLCreateByResolvingBookmarkData =
-				(CFURLCreateByResolvingBookmarkDataProcPtr)
-				CFBundleGetFunctionPointerForName(AppServBunRef,
-					CFSTR("CFURLCreateByResolvingBookmarkData"));
-		}
-		DidCFURLCreateByResolvingBookmarkData = trueblnr;
-	}
-	return (MyCFURLCreateByResolvingBookmarkData != NULL);
-}
-
-
-typedef boolean_t (*CGCursorIsVisibleProcPtr)(void);
-
-LOCALVAR CGCursorIsVisibleProcPtr MyCGCursorIsVisible = NULL;
-LOCALVAR blnr DidCGCursorIsVisible = falseblnr;
-
-LOCALFUNC blnr HaveMyCGCursorIsVisible(void)
-{
-	if (! DidCGCursorIsVisible) {
-		if (HaveApplicationServicesBun()) {
-			MyCGCursorIsVisible =
-				(CGCursorIsVisibleProcPtr)
-				CFBundleGetFunctionPointerForName(
-					AppServBunRef, CFSTR("CGCursorIsVisible"));
-		}
-		DidCGCursorIsVisible = trueblnr;
-	}
-	return (MyCGCursorIsVisible != NULL);
-}
-
-#ifndef MyNSPasteboardTypeString
-#define MyNSPasteboardTypeString NSPasteboardTypeString
-#endif
-
-#ifndef MyNSEventModifierFlagCapsLock
-#define MyNSEventModifierFlagCapsLock NSEventModifierFlagCapsLock
-#endif
-
-#ifndef MyNSEventModifierFlagShift
-#define MyNSEventModifierFlagShift NSEventModifierFlagShift
-#endif
-
-#ifndef MyNSEventModifierFlagControl
-#define MyNSEventModifierFlagControl NSEventModifierFlagControl
-#endif
-
-#ifndef MyNSEventModifierFlagOption
-#define MyNSEventModifierFlagOption NSEventModifierFlagOption
-#endif
-
-#ifndef MyNSEventModifierFlagCommand
-#define MyNSEventModifierFlagCommand NSEventModifierFlagCommand
-#endif
-
-#ifndef MyNSWindowStyleMaskBorderless
-#define MyNSWindowStyleMaskBorderless NSWindowStyleMaskBorderless
-#endif
-
-#ifndef MyNSWindowStyleMaskTitled
-#define MyNSWindowStyleMaskTitled NSWindowStyleMaskTitled
-#endif
-
-#ifndef MyNSWindowStyleMaskMiniaturizable
-#define MyNSWindowStyleMaskMiniaturizable \
-	NSWindowStyleMaskMiniaturizable
-#endif
-
-#ifndef MyNSWindowStyleMaskClosable
-#define MyNSWindowStyleMaskClosable NSWindowStyleMaskClosable
-#endif
-
-#ifndef MyNSEventTypeLeftMouseDown
-#define MyNSEventTypeLeftMouseDown NSEventTypeLeftMouseDown
-#endif
-
-#ifndef MyNSEventTypeLeftMouseUp
-#define MyNSEventTypeLeftMouseUp NSEventTypeLeftMouseUp
-#endif
-
-#ifndef MyNSEventTypeRightMouseDown
-#define MyNSEventTypeRightMouseDown NSEventTypeRightMouseDown
-#endif
-
-#ifndef MyNSEventTypeRightMouseUp
-#define MyNSEventTypeRightMouseUp NSEventTypeRightMouseUp
-#endif
-
-#ifndef MyNSEventTypeOtherMouseDown
-#define MyNSEventTypeOtherMouseDown NSEventTypeOtherMouseDown
-#endif
-
-#ifndef MyNSEventTypeOtherMouseUp
-#define MyNSEventTypeOtherMouseUp NSEventTypeOtherMouseUp
-#endif
-
-#ifndef MyNSEventTypeMouseMoved
-#define MyNSEventTypeMouseMoved NSEventTypeMouseMoved
-#endif
-
-#ifndef MyNSEventTypeLeftMouseDragged
-#define MyNSEventTypeLeftMouseDragged NSEventTypeLeftMouseDragged
-#endif
-
-#ifndef MyNSEventTypeRightMouseDragged
-#define MyNSEventTypeRightMouseDragged NSEventTypeRightMouseDragged
-#endif
-
-#ifndef MyNSEventTypeOtherMouseDragged
-#define MyNSEventTypeOtherMouseDragged NSEventTypeOtherMouseDragged
-#endif
-
-#ifndef MyNSEventTypeKeyDown
-#define MyNSEventTypeKeyDown NSEventTypeKeyDown
-#endif
-
-#ifndef MyNSEventTypeKeyUp
-#define MyNSEventTypeKeyUp NSEventTypeKeyUp
-#endif
-
-#ifndef MyNSEventTypeFlagsChanged
-#define MyNSEventTypeFlagsChanged NSEventTypeFlagsChanged
-#endif
-
-#ifndef MyNSEventTypeFlagsChanged
-#define MyNSEventTypeFlagsChanged NSEventTypeFlagsChanged
-#endif
-
-#ifndef MyNSEventTypeApplicationDefined
-#define MyNSEventTypeApplicationDefined NSEventTypeApplicationDefined
-#endif
-
-#ifndef MyNSAnyEventMask
-#define MyNSAnyEventMask NSUIntegerMax
-#endif
 
 
 /* --- some simple utilities --- */
@@ -639,90 +307,57 @@ LOCALFUNC NSString *MyResolveAlias(NSString *filePath,
 
 
 	if (url != NULL) {
-		if (HaveMyCFURLCopyResourcePropertyForKey()
-			&& HaveMykCFURLIsAliasFileKey()
-			&& HaveMykCFURLIsSymbolicLinkKey()
-			&& HaveMyCFURLCreateBookmarkDataFromFile()
-			&& HaveMyCFURLCreateByResolvingBookmarkData())
+		BOOL isDir;
+		Boolean isStale;
+		CFBooleanRef is_alias_file = NULL;
+		CFBooleanRef is_symbolic_link = NULL;
+		CFDataRef bookmark = NULL;
+		CFURLRef resolvedurl = NULL;
+
+		if (CFURLCopyResourcePropertyForKey(url,
+			kCFURLIsAliasFileKey, &is_alias_file, NULL))
+		if (CFBooleanGetValue(is_alias_file))
+		if (CFURLCopyResourcePropertyForKey(url,
+			kCFURLIsSymbolicLinkKey, &is_symbolic_link, NULL))
+		if (! CFBooleanGetValue(is_symbolic_link))
+		if (NULL != (bookmark = CFURLCreateBookmarkDataFromFile(
+			kCFAllocatorDefault, url, NULL)))
+		if (NULL != (resolvedurl =
+			CFURLCreateByResolvingBookmarkData(
+				kCFAllocatorDefault,
+				bookmark,
+				0 /* CFURLBookmarkResolutionOptions options */,
+				NULL /* relativeToURL */,
+				NULL /* resourcePropertiesToInclude */,
+				&isStale,
+				NULL /* error */)))
+		if (nil != (resolvedPath =
+			(NSString *)CFURLCopyFileSystemPath(
+				resolvedurl, kCFURLPOSIXPathStyle)))
 		{
-			BOOL isDir;
-			Boolean isStale;
-			CFBooleanRef is_alias_file = NULL;
-			CFBooleanRef is_symbolic_link = NULL;
-			CFDataRef bookmark = NULL;
-			CFURLRef resolvedurl = NULL;
-
-			if (MyCFURLCopyResourcePropertyForKey(url,
-				*MykCFURLIsAliasFileKey, &is_alias_file, NULL))
-			if (CFBooleanGetValue(is_alias_file))
-			if (MyCFURLCopyResourcePropertyForKey(url,
-				*MykCFURLIsSymbolicLinkKey, &is_symbolic_link, NULL))
-			if (! CFBooleanGetValue(is_symbolic_link))
-			if (NULL != (bookmark = MyCFURLCreateBookmarkDataFromFile(
-				kCFAllocatorDefault, url, NULL)))
-			if (NULL != (resolvedurl =
-				MyCFURLCreateByResolvingBookmarkData(
-					kCFAllocatorDefault,
-					bookmark,
-					0 /* MyCFURLBookmarkResolutionOptions options */,
-					NULL /* relativeToURL */,
-					NULL /* resourcePropertiesToInclude */,
-					&isStale,
-					NULL /* error */)))
-			if (nil != (resolvedPath =
-				(NSString *)CFURLCopyFileSystemPath(
-					resolvedurl, kCFURLPOSIXPathStyle)))
+			if ([[NSFileManager defaultManager]
+				fileExistsAtPath: resolvedPath isDirectory: &isDir])
 			{
-				if ([[NSFileManager defaultManager]
-					fileExistsAtPath: resolvedPath isDirectory: &isDir])
-				{
-					*targetIsFolder = isDir;
-				} else
-				{
-					*targetIsFolder = FALSE;
-				}
-
-				[resolvedPath autorelease];
+				*targetIsFolder = isDir;
+			} else
+			{
+				*targetIsFolder = FALSE;
 			}
 
-			if (NULL != resolvedurl) {
-				CFRelease(resolvedurl);
-			}
-			if (NULL != bookmark) {
-				CFRelease(bookmark);
-			}
-			if (NULL != is_alias_file) {
-				CFRelease(is_alias_file);
-			}
-			if (NULL != is_symbolic_link) {
-				CFRelease(is_symbolic_link);
-			}
-		} else {
-			FSRef fsRef;
-			Boolean wasAliased;
+			[resolvedPath autorelease];
+		}
 
-			if (CFURLGetFSRef(url, &fsRef)) {
-				/*
-					FSResolveAliasFile deprecated in 10.8
-				*/
-
-				if ((FSResolveAliasFile(&fsRef,
-					TRUE /*resolveAliasChains*/,
-					targetIsFolder, &wasAliased) == noErr)
-					&& wasAliased)
-				{
-					CFURLRef resolvedurl =
-						CFURLCreateFromFSRef(kCFAllocatorDefault,
-							&fsRef);
-					if (resolvedurl != NULL) {
-						resolvedPath =
-							(NSString *)CFURLCopyFileSystemPath(
-								resolvedurl, kCFURLPOSIXPathStyle);
-						[resolvedPath autorelease];
-						CFRelease(resolvedurl);
-					}
-				}
-			}
+		if (NULL != resolvedurl) {
+			CFRelease(resolvedurl);
+		}
+		if (NULL != bookmark) {
+			CFRelease(bookmark);
+		}
+		if (NULL != is_alias_file) {
+			CFRelease(is_alias_file);
+		}
+		if (NULL != is_symbolic_link) {
+			CFRelease(is_symbolic_link);
 		}
 
 		CFRelease(url);
@@ -1311,11 +946,11 @@ GLOBALOSGLUFUNC tMacErr HTCEexport(tPbuf i)
 			autorelease];
 		NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
 		NSArray *newTypes =
-			[NSArray arrayWithObject: MyNSPasteboardTypeString];
+			[NSArray arrayWithObject: NSPasteboardTypeString];
 
 		(void) [pasteboard declareTypes: newTypes owner: nil];
 		if ([pasteboard setString: ss
-			forType: MyNSPasteboardTypeString])
+			forType: NSPasteboardTypeString])
 		{
 			err = mnvm_noErr;
 		}
@@ -1336,13 +971,13 @@ GLOBALOSGLUFUNC tMacErr HTCEimport(tPbuf *r)
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 	NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
 	NSArray *supportedTypes = [NSArray
-		arrayWithObject: MyNSPasteboardTypeString];
+		arrayWithObject: NSPasteboardTypeString];
 	NSString *available = [pasteboard
 		availableTypeFromArray: supportedTypes];
 
 	if (nil != available) {
 		NSString *string = [pasteboard
-			stringForType: MyNSPasteboardTypeString];
+			stringForType: NSPasteboardTypeString];
 		if (nil != string) {
 			err = NSStringToRomanPbuf(string, r);
 		}
@@ -1449,17 +1084,8 @@ LOCALFUNC blnr EntropyGather(void)
 #endif
 
 
-#define UseCGContextDrawImage 0
-
 LOCALVAR NSWindow *MyWindow = nil;
 LOCALVAR NSView *MyNSview = nil;
-#if UseCGContextDrawImage
-LOCALVAR NSGraphicsContext *MyNSgfxContext = nil;
-LOCALVAR CGContextRef MyCGcontext = nil;
-LOCALVAR void *MyPixels = NULL;
-LOCALVAR ui4b MyPitch;
-LOCALVAR ui3b MyBytesPerPixel;
-#endif
 
 LOCALVAR NSOpenGLContext *MyNSOpnGLCntxt = nil;
 LOCALVAR short GLhOffset;
@@ -1546,15 +1172,15 @@ LOCALPROC MyUpdateKeyboardModifiers(NSUInteger newMods)
 	NSUInteger changeMask = MyCurrentMods ^ newMods;
 
 	if (0 != changeMask) {
-		if (0 != (changeMask & MyNSEventModifierFlagCapsLock)) {
+		if (0 != (changeMask & NSEventModifierFlagCapsLock)) {
 			Keyboard_UpdateKeyMap2(MKC_formac_CapsLock,
-				0 != (newMods & MyNSEventModifierFlagCapsLock));
+				0 != (newMods & NSEventModifierFlagCapsLock));
 		}
 
 #if MKC_formac_RShift == MKC_formac_Shift
-		if (0 != (changeMask & MyNSEventModifierFlagShift)) {
+		if (0 != (changeMask & NSEventModifierFlagShift)) {
 			Keyboard_UpdateKeyMap2(MKC_formac_Shift,
-				0 != (newMods & MyNSEventModifierFlagShift));
+				0 != (newMods & NSEventModifierFlagShift));
 		}
 #else
 		if (0 != (changeMask & My_NSLShiftKeyMask)) {
@@ -1568,9 +1194,9 @@ LOCALPROC MyUpdateKeyboardModifiers(NSUInteger newMods)
 #endif
 
 #if MKC_formac_RControl == MKC_formac_Control
-		if (0 != (changeMask & MyNSEventModifierFlagControl)) {
+		if (0 != (changeMask & NSEventModifierFlagControl)) {
 			Keyboard_UpdateKeyMap2(MKC_formac_Control,
-				0 != (newMods & MyNSEventModifierFlagControl));
+				0 != (newMods & NSEventModifierFlagControl));
 		}
 #else
 		if (0 != (changeMask & My_NSLControlKeyMask)) {
@@ -1584,9 +1210,9 @@ LOCALPROC MyUpdateKeyboardModifiers(NSUInteger newMods)
 #endif
 
 #if MKC_formac_RCommand == MKC_formac_Command
-		if (0 != (changeMask & MyNSEventModifierFlagCommand)) {
+		if (0 != (changeMask & NSEventModifierFlagCommand)) {
 			Keyboard_UpdateKeyMap2(MKC_formac_Command,
-				0 != (newMods & MyNSEventModifierFlagCommand));
+				0 != (newMods & NSEventModifierFlagCommand));
 		}
 #else
 		if (0 != (changeMask & My_NSLCommandKeyMask)) {
@@ -1600,9 +1226,9 @@ LOCALPROC MyUpdateKeyboardModifiers(NSUInteger newMods)
 #endif
 
 #if MKC_formac_ROption == MKC_formac_Option
-		if (0 != (changeMask & MyNSEventModifierFlagOption)) {
+		if (0 != (changeMask & NSEventModifierFlagOption)) {
 			Keyboard_UpdateKeyMap2(MKC_formac_Option,
-				0 != (newMods & MyNSEventModifierFlagOption));
+				0 != (newMods & NSEventModifierFlagOption));
 		}
 #else
 		if (0 != (changeMask & My_NSLOptionKeyMask)) {
@@ -2077,35 +1703,6 @@ label_exit:
 #endif
 }
 
-#if UseCGContextDrawImage
-LOCALPROC SDL_UpdateRect(si5b x, si5b y, ui5b w, ui5b h)
-{
-	if ([MyWindow isMiniaturized]) {
-
-		/* Do nothing if miniaturized */
-
-	} else {
-		NSGraphicsContext *ctx = [NSGraphicsContext currentContext];
-		if (ctx != MyNSgfxContext) {
-			/* uhoh, you might be rendering from another thread... */
-			[NSGraphicsContext
-				setCurrentContext: MyNSgfxContext];
-			ctx = MyNSgfxContext;
-		}
-		CGContextRef cgc = (CGContextRef) [ctx graphicsPort];
-		CGContextFlush(MyCGcontext);
-		CGImageRef image = CGBitmapContextCreateImage(
-			MyCGcontext);
-		CGRect rectangle = CGRectMake(0, 0,
-			[MyNSview frame].size.width,
-			[MyNSview frame].size.height);
-
-		CGContextDrawImage(cgc, rectangle, image);
-		CGImageRelease(image);
-		CGContextFlush(cgc);
-	}
-}
-#endif
 
 /* --- time, date, location --- */
 
@@ -2886,7 +2483,7 @@ LOCALPROC FinishSubMenu(NSMenu *theMenu, NSMenu *parentMenu,
 	[menuItem release];
 }
 
-LOCALFUNC NSMenu *setApplicationMenu(NSMenu *mainMenu)
+LOCALPROC setApplicationMenu(NSMenu *mainMenu)
 {
 	NSMenuItem *menuItem;
 	NSString *sAppName = NSStringCreateFromSubstCStr("^p");
@@ -2909,7 +2506,7 @@ LOCALFUNC NSMenu *setApplicationMenu(NSMenu *mainMenu)
 		action: @selector(performApplicationAbout:)
 		keyEquivalent: @"a"];
 	[menuItem
-		setKeyEquivalentModifierMask: MyNSEventModifierFlagControl];
+		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
 
 	[appleMenu addItem:[NSMenuItem separatorItem]];
 
@@ -2930,13 +2527,11 @@ LOCALFUNC NSMenu *setApplicationMenu(NSMenu *mainMenu)
 	menuItem = [appleMenu addItemWithTitle: sQuit
 		action: @selector(terminate:) keyEquivalent: @"q"];
 	[menuItem
-		setKeyEquivalentModifierMask: MyNSEventModifierFlagControl];
+		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
 
 	FinishSubMenu(appleMenu, mainMenu, sAppName);
 
 	[appleMenu release];
-
-	return appleMenu;
 }
 
 /* Create File menu */
@@ -2956,7 +2551,7 @@ LOCALPROC setupFileMenu(NSMenu *mainMenu)
 		action: @selector(performFileOpen:)
 		keyEquivalent: @"o"];
 	[menuItem
-		setKeyEquivalentModifierMask: MyNSEventModifierFlagControl];
+		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
 
 	FinishSubMenu(fileMenu, mainMenu, sFile);
 
@@ -2987,24 +2582,13 @@ LOCALPROC setupSpecialMenu(NSMenu *mainMenu)
 LOCALPROC MyMenuSetup(void)
 {
 	NSMenu *mainMenu = [[NSMenu alloc] init];
-	NSMenu *appleMenu = setApplicationMenu(mainMenu);
+
+	setApplicationMenu(mainMenu);
 
 	setupFileMenu(mainMenu);
 	setupSpecialMenu(mainMenu);
 
 	[NSApp setMainMenu: mainMenu];
-
-	/*
-		Tell the application object that this is now
-		the application menu, if this unsupported
-		call actually exists. Doesn't seem to
-		be needed anyway, at least in OS X 10.7
-	*/
-	if([NSApp respondsToSelector:@selector(setAppleMenu:)]) {
-		/* [NSApp setAppleMenu: appleMenu]; */
-		[NSApp performSelector: @selector(setAppleMenu:)
-			withObject:appleMenu];
-	}
 
 	[mainMenu release];
 }
@@ -3014,7 +2598,6 @@ LOCALPROC MyMenuSetup(void)
 /* --- video out --- */
 
 
-#if ! UseCGContextDrawImage
 LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 	ui4r bottom, ui4r right)
 {
@@ -3043,131 +2626,6 @@ LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 		seems to think entire view is dirty.
 */
 }
-#else
-LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
-	ui4r bottom, ui4r right)
-{
-	int i;
-	int j;
-	ui3b *the_data = (ui3b *)GetCurDrawBuff();
-	ui3b *p;
-	ui5b color;
-	ui5b black_color = 0;
-		/* SDL_MapRGB(cur_video.format, 0, 0, 0) */
-	ui5b white_color = 0;
-		/* SDL_MapRGB(cur_video.format, 255, 255, 255) */
-
-	switch (MyBytesPerPixel) {
-		case 2: /* (1)-5-5-5 RGB */
-#if 0
-			rmask = 0x7C00;
-			gmask = 0x03E0;
-			bmask = 0x001F;
-#endif
-			break;
-		case 4:
-#if LittleEndianUnaligned
-#if 0
-			rmask = 0x0000FF00;
-			gmask = 0x00FF0000;
-			bmask = 0xFF000000;
-#endif
-			black_color = 0x000000FF;
-			white_color = 0xFFFFFFFF;
-#else
-#if 0
-			rmask = 0x00FF0000;
-			gmask = 0x0000FF00;
-			bmask = 0x000000FF;
-#endif
-			black_color = 0xFF000000;
-			white_color = 0xFFFFFFFF;
-#endif
-			break;
-	}
-
-#if EnableMagnify
-	if (UseMagnify) {
-		for (i = top * MyWindowScale; i < bottom * MyWindowScale; ++i) {
-			for (j = left * MyWindowScale;
-				j < right * MyWindowScale; ++j)
-			{
-				p = the_data + (((i / MyWindowScale) * vMacScreenWidth
-					+ (j / MyWindowScale)) / 8);
-				if (0 != (*p & (1 << ((~ (j / MyWindowScale)) & 0x7))))
-				{
-					color = black_color;
-				} else {
-					color = white_color;
-				}
-				switch (MyBytesPerPixel) {
-					case 2: { /* Probably 15-bpp or 16-bpp */
-						ui4b *bufp;
-
-						bufp = (ui4b *)MyPixels
-							+ i * MyPitch / 2 + j;
-						*bufp = color;
-					}
-					break;
-
-					case 4: { /* Probably 32-bpp */
-						ui5b *bufp;
-
-						bufp = (ui5b *)MyPixels
-							+ i * MyPitch / 4 + j;
-						*bufp = color;
-					}
-					break;
-				}
-			}
-		}
-	} else
-#endif
-	{
-		for (i = top; i < bottom; ++i) {
-			for (j = left; j < right; ++j) {
-				p = the_data + ((i * vMacScreenWidth + j) / 8);
-				if (0 != (*p & (1 << ((~ j) & 0x7)))) {
-					color = black_color;
-				} else {
-					color = white_color;
-				}
-				switch (MyBytesPerPixel) {
-					case 2: { /* Probably 15-bpp or 16-bpp */
-						ui4b *bufp;
-
-						bufp = (ui4b *)MyPixels
-							+ i * MyPitch / 2 + j;
-						*bufp = color;
-					}
-					break;
-					case 4: { /* Probably 32-bpp */
-						ui5b *bufp;
-
-						bufp = (ui5b *)MyPixels
-							+ i * MyPitch / 4 + j;
-						*bufp = color;
-					}
-					break;
-				}
-			}
-		}
-	}
-
-#if EnableMagnify
-	if (UseMagnify) {
-		SDL_UpdateRect(left * MyWindowScale,
-			top * MyWindowScale,
-			(right - left) * MyWindowScale,
-			(bottom - top) * MyWindowScale);
-	} else
-#endif
-	{
-		SDL_UpdateRect(left, top,
-			right - left, bottom - top);
-	}
-}
-#endif
 
 LOCALPROC MyDrawChangesAndClear(void)
 {
@@ -3229,75 +2687,28 @@ LOCALPROC CheckSavedMacMsg(void)
 
 /* --- hide/show menubar --- */
 
-enum {
-	MyNSApplicationPresentationDefault                    = 0,
-	MyNSApplicationPresentationAutoHideDock               = (1 <<  0),
-	MyNSApplicationPresentationHideDock                   = (1 <<  1),
-	MyNSApplicationPresentationAutoHideMenuBar            = (1 <<  2),
-	MyNSApplicationPresentationHideMenuBar                = (1 <<  3),
-	MyNSApplicationPresentationDisableAppleMenu           = (1 <<  4),
-	MyNSApplicationPresentationDisableProcessSwitching    = (1 <<  5),
-	MyNSApplicationPresentationDisableForceQuit           = (1 <<  6),
-	MyNSApplicationPresentationDisableSessionTermination  = (1 <<  7),
-	MyNSApplicationPresentationDisableHideApplication     = (1 <<  8),
-	MyNSApplicationPresentationDisableMenuBarTransparency = (1 <<  9),
-	MyNSApplicationPresentationFullScreen                 = (1 << 10),
-	MyNSApplicationPresentationAutoHideToolbar            = (1 << 11)
-};
-typedef NSUInteger MyNSApplicationPresentationOptions;
-
-@interface MyNSApplication : NSObject
-- (void)setPresentationOptions:
-	(MyNSApplicationPresentationOptions)newOptions;
-@end
-
-
 #if MayFullScreen
 LOCALPROC My_HideMenuBar(void)
 {
-	if ([NSApp respondsToSelector:@selector(setPresentationOptions:)]) {
-		[((MyNSApplication *)NSApp) setPresentationOptions:
-			MyNSApplicationPresentationHideDock
-			| MyNSApplicationPresentationHideMenuBar
+	[NSApp setPresentationOptions:
+		NSApplicationPresentationHideDock
+		| NSApplicationPresentationHideMenuBar
 #if GrabKeysFullScreen
-			| MyNSApplicationPresentationDisableProcessSwitching
+		| NSApplicationPresentationDisableProcessSwitching
 #if GrabKeysMaxFullScreen /* dangerous !! */
-			| MyNSApplicationPresentationDisableForceQuit
-			| MyNSApplicationPresentationDisableSessionTermination
+		| NSApplicationPresentationDisableForceQuit
+		| NSApplicationPresentationDisableSessionTermination
 #endif
 #endif
-			];
-	} else
-	if (HaveMySetSystemUIMode()) {
-		(void) MySetSystemUIMode(MykUIModeAllHidden,
-			MykUIOptionDisableAppleMenu
-#if GrabKeysFullScreen
-			| MykUIOptionDisableProcessSwitch
-#if GrabKeysMaxFullScreen /* dangerous !! */
-			| MykUIOptionDisableForceQuit
-			| MykUIOptionDisableSessionTerminate
-#endif
-#endif
-			);
-	} else
-	{
-	}
+		];
 }
 #endif
 
 #if MayFullScreen
 LOCALPROC My_ShowMenuBar(void)
 {
-	if ([NSApp respondsToSelector:@selector(setPresentationOptions:)]) {
-		[((MyNSApplication *)NSApp) setPresentationOptions:
-			MyNSApplicationPresentationDefault];
-	} else
-	if (HaveMySetSystemUIMode()) {
-		(void) MySetSystemUIMode(MykUIModeNormal,
-			0);
-	} else
-	{
-	}
+	[NSApp setPresentationOptions:
+		NSApplicationPresentationDefault];
 }
 #endif
 
@@ -3436,10 +2847,6 @@ LOCALPROC CloseMyOpenGLContext(void)
 	}
 }
 
-@interface MyClassNSview : NSObject
-- (void)setWantsBestResolutionOpenGLSurface:(BOOL)aBool;
-@end
-
 LOCALFUNC blnr GetOpnGLCntxt(void)
 {
 	blnr v = falseblnr;
@@ -3503,9 +2910,6 @@ LOCALFUNC blnr GetOpnGLCntxt(void)
 label_exit:
 	return v;
 }
-
-typedef NSUInteger (*modifierFlagsProcPtr)
-	(id self, SEL cmd);
 
 /* Subclass of NSWindow to fix genie effect and support resize events */
 @interface MyClassWindow : NSWindow
@@ -3602,16 +3006,7 @@ typedef NSUInteger (*modifierFlagsProcPtr)
 	}
 
 	if (v && gTrueBackgroundFlag) {
-		{
-			SEL sel = @selector(modifierFlags);
-
-			if ([NSEvent respondsToSelector:sel]) {
-				modifierFlagsProcPtr imp = (modifierFlagsProcPtr)
-					[NSEvent methodForSelector:sel];
-
-				MyUpdateKeyboardModifiers(imp([NSEvent class], sel));
-			}
-		}
+		MyUpdateKeyboardModifiers([NSEvent modifierFlags]);
 
 		[NSApp activateIgnoringOtherApps: YES];
 	}
@@ -3702,10 +3097,6 @@ typedef NSUInteger (*modifierFlagsProcPtr)
 
 @end
 
-#if UseCGContextDrawImage
-/* absent in 10.3.9.  */
-CG_EXTERN CGImageRef CGBitmapContextCreateImage(CGContextRef);
-#endif
 
 
 LOCALVAR MyClassWindowDelegate *MyWinDelegate = nil;
@@ -3727,18 +3118,6 @@ LOCALPROC CloseMainWindow(void)
 		MyNSview = nil;
 	}
 
-#if UseCGContextDrawImage
-	if (nil != MyCGcontext) {
-		CGContextFlush(MyCGcontext);
-		CGContextRelease(MyCGcontext);
-		MyCGcontext = nil;
-	}
-
-	if (NULL != MyPixels) {
-		free(MyPixels);
-		MyPixels = NULL;
-	}
-#endif
 
 	if (nil != MyNSOpnGLCntxt) {
 		[MyNSOpnGLCntxt release];
@@ -3778,9 +3157,6 @@ LOCALVAR NSRect SavedScrnBounds;
 
 LOCALFUNC blnr CreateMainWindow(void)
 {
-#if UseCGContextDrawImage
-	CGColorSpaceRef cgColorspace;
-#endif
 	unsigned int style;
 	NSRect MainScrnBounds;
 	NSRect AllScrnBounds;
@@ -3880,7 +3256,7 @@ LOCALFUNC blnr CreateMainWindow(void)
 		hOffset = GLhOffset;
 		vOffset = AllScrnBounds.size.height - GLvOffset;
 
-		style = MyNSWindowStyleMaskBorderless;
+		style = NSWindowStyleMaskBorderless;
 	}
 #endif
 #if VarFullScreen
@@ -3914,9 +3290,9 @@ LOCALFUNC blnr CreateMainWindow(void)
 		GLhOffset = 0;
 		GLvOffset = NewWindowHeight;
 
-		style = MyNSWindowStyleMaskTitled
-			| MyNSWindowStyleMaskMiniaturizable
-			| MyNSWindowStyleMaskClosable;
+		style = NSWindowStyleMaskTitled
+			| NSWindowStyleMaskMiniaturizable
+			| NSWindowStyleMaskClosable;
 
 		CurWinIndx = WinIndx;
 	}
@@ -3952,7 +3328,7 @@ LOCALFUNC blnr CreateMainWindow(void)
 	MyWinDelegate = [[MyClassWindowDelegate alloc] init];
 	if (nil == MyWinDelegate) {
 #if dbglog_HAVE
-		dbglog_writeln("Could not create MyNSview");
+		dbglog_writeln("Could not create MyWinDelegate");
 #endif
 		goto label_exit;
 	}
@@ -3972,12 +3348,7 @@ LOCALFUNC blnr CreateMainWindow(void)
 		instead of NO when the NSHighResolutionCapable boolean
 		is set in Info.plist."
 	*/
-	if ([MyNSview respondsToSelector:@selector(
-		setWantsBestResolutionOpenGLSurface:)])
-	{
-		[((MyClassNSview *)MyNSview)
-			setWantsBestResolutionOpenGLSurface:NO];
-	}
+	[MyNSview setWantsBestResolutionOpenGLSurface:NO];
 
 	[MyWindow setContentView: MyNSview];
 
@@ -3994,23 +3365,6 @@ LOCALFUNC blnr CreateMainWindow(void)
 		goto label_exit;
 	}
 
-#if UseCGContextDrawImage
-	MyPitch = 4 * NewWindowWidth;
-	MyPixels = malloc(NewWindowHeight * MyPitch);
-
-	cgColorspace = CGColorSpaceCreateDeviceRGB();
-	MyCGcontext = CGBitmapContextCreate(MyPixels,
-		NewWindowWidth, NewWindowHeight,
-		8, MyPitch, cgColorspace,
-		kCGImageAlphaNoneSkipFirst);
-	CGColorSpaceRelease(cgColorspace);
-
-	MyNSgfxContext = [NSGraphicsContext
-		graphicsContextWithWindow: MyWindow];
-	[NSGraphicsContext setCurrentContext: MyNSgfxContext];
-
-	MyBytesPerPixel = 4;
-#endif
 
 	v = trueblnr;
 
@@ -4025,11 +3379,6 @@ LOCALPROC ZapMyWState(void)
 	MyWindow = nil;
 	MyNSview = nil;
 	MyWinDelegate = nil;
-#if UseCGContextDrawImage
-	MyNSgfxContext = nil;
-	MyCGcontext = nil;
-	MyPixels = NULL;
-#endif
 	MyNSOpnGLCntxt = nil;
 }
 #endif
@@ -4056,13 +3405,6 @@ struct MyWState {
 	NSWindow *f_MyWindow;
 	NSView *f_MyNSview;
 	MyClassWindowDelegate *f_MyWinDelegate;
-#if UseCGContextDrawImage
-	NSGraphicsContext *f_MyNSgfxContext;
-	CGContextRef f_MyCGcontext;
-	void *f_MyPixels;
-	ui4b f_MyPitch;
-	ui3b f_MyBytesPerPixel;
-#endif
 	NSOpenGLContext *f_MyNSOpnGLCntxt;
 	short f_GLhOffset;
 	short f_GLvOffset;
@@ -4093,13 +3435,6 @@ LOCALPROC GetMyWState(MyWState *r)
 	r->f_MyWindow = MyWindow;
 	r->f_MyNSview = MyNSview;
 	r->f_MyWinDelegate = MyWinDelegate;
-#if UseCGContextDrawImage
-	r->f_MyNSgfxContext = MyNSgfxContext;
-	r->f_MyCGcontext = MyCGcontext;
-	r->f_MyPixels = MyPixels;
-	r->f_MyPitch = MyPitch;
-	r->f_MyBytesPerPixel = MyBytesPerPixel;
-#endif
 	r->f_MyNSOpnGLCntxt = MyNSOpnGLCntxt;
 	r->f_GLhOffset = GLhOffset;
 	r->f_GLvOffset = GLvOffset;
@@ -4129,13 +3464,6 @@ LOCALPROC SetMyWState(MyWState *r)
 	MyWindow = r->f_MyWindow;
 	MyNSview = r->f_MyNSview;
 	MyWinDelegate = r->f_MyWinDelegate;
-#if UseCGContextDrawImage
-	MyNSgfxContext = r->f_MyNSgfxContext;
-	MyCGcontext = r->f_MyCGcontext;
-	MyPixels = r->f_MyPixels;
-	MyPitch = r->f_MyPitch;
-	MyBytesPerPixel = r->f_MyBytesPerPixel;
-#endif
 	MyNSOpnGLCntxt = r->f_MyNSOpnGLCntxt;
 	GLhOffset = r->f_GLhOffset;
 	GLvOffset = r->f_GLvOffset;
@@ -4348,33 +3676,14 @@ LOCALFUNC blnr FindOrMakeNamedChildDirPath(NSString *parentPath,
 				}
 			}
 		} else {
-			if ([fm respondsToSelector:@selector(
-createDirectoryAtPath:withIntermediateDirectories:attributes:error:
-				)])
+			if ([fm
+				createDirectoryAtPath:r
+				withIntermediateDirectories:NO
+				attributes:nil
+				error:nil])
 			{
-				if ([fm
-					createDirectoryAtPath:r
-					withIntermediateDirectories:NO
-					attributes:nil
-					error:nil])
-				{
-					*childPath = r;
-					v = trueblnr;
-				}
-			} else
-			if ([fm respondsToSelector:
-				@selector(createDirectoryAtPath:attributes:)])
-			{
-				if ([fm
-					createDirectoryAtPath:r
-					attributes:nil])
-				{
-					*childPath = r;
-					v = trueblnr;
-				}
-			} else
-			{
-				/* fail */
+				*childPath = r;
+				v = trueblnr;
 			}
 		}
 	}
@@ -4382,12 +3691,6 @@ createDirectoryAtPath:withIntermediateDirectories:attributes:error:
 	return v;
 }
 #endif
-
-@interface MyNSSavePanel : NSObject
-- (NSInteger)runModalForDirectory:(NSString *)path
-	file:(NSString *)filename;
-- (void)setNameFieldStringValue:(NSString *)value;
-@end
 
 #if IncludeSonyNew
 LOCALPROC MakeNewDisk(ui5b L, NSString *drivename)
@@ -4398,51 +3701,9 @@ LOCALPROC MakeNewDisk(ui5b L, NSString *drivename)
 
 	MyBeginDialog();
 
-	if ([panel respondsToSelector:@selector(setNameFieldStringValue:)])
-	{
-#if 0
-		[panel setNameFieldStringValue: drivename];
-			/* available as of OS X 10.6 */
-#endif
-#if 0
-		[panel performSelector:@selector(setNameFieldStringValue:)
-			withObject: drivename];
-#endif
-		[((MyNSSavePanel *)panel)
-			setNameFieldStringValue: drivename];
+	[panel setNameFieldStringValue: drivename];
 
-		result = [panel runModal];
-	} else
-	if ([panel
-		respondsToSelector: @selector(runModalForDirectory:file:)])
-	{
-#if 0
-		result = [panel runModalForDirectory: nil file: drivename];
-			/*
-				compiler warns deprecated. To avoid warning, and
-				to still work if removed from SDK, use NSInvocation.
-			*/
-#endif
-#if 0
-		NSString *sDirName = nil;
-		SEL sel = @selector(runModalForDirectory:file:);
-		NSInvocation* invoc =
-			[NSInvocation invocationWithMethodSignature:
-				[panel methodSignatureForSelector: sel]];
-		[invoc setTarget:panel];
-		[invoc setSelector:sel];
-		[invoc setArgument:&sDirName atIndex:2];
-		[invoc setArgument:&drivename atIndex:3];
-		[invoc invoke];
-		[invoc getReturnValue: &result];
-#endif
-		/* an easier way ? seems to work */
-		result = [((MyNSSavePanel *)panel)
-			runModalForDirectory: nil file: drivename];
-	} else
-	{
-		/* fail */
-	}
+	result = [panel runModal];
 
 	MyEndDialog();
 
@@ -4651,28 +3912,25 @@ LOCALPROC CheckForSavedTasks(void)
 		If move mouse to dock then cursor is made visible, but then
 		if move directly to our window, cursor is not hidden again.
 	*/
-	if (HaveMyCGCursorIsVisible()) {
-		/* but only in OS X 10.3 and later */
-		/* deprecated in cocoa, but no alternative (?) */
-		if (MyCGCursorIsVisible()) {
-			if (HaveCursorHidden) {
-				MyHideCursor();
-				if (MyCGCursorIsVisible()) {
-					/*
-						didn't work, attempt undo so that
-						hide cursor count won't get large
-					*/
-					MyShowCursor();
-				}
-			}
-		} else {
-			if (! HaveCursorHidden) {
-				MyShowCursor();
+	/* deprecated in cocoa, but no alternative (?) */
+	if (CGCursorIsVisible()) {
+		if (HaveCursorHidden) {
+			MyHideCursor();
+			if (CGCursorIsVisible()) {
 				/*
-					don't check if worked, assume can't decrement
-					hide cursor count below 0
+					didn't work, attempt undo so that
+					hide cursor count won't get large
 				*/
+				MyShowCursor();
 			}
+		}
+	} else {
+		if (! HaveCursorHidden) {
+			MyShowCursor();
+			/*
+				don't check if worked, assume can't decrement
+				hide cursor count below 0
+			*/
 		}
 	}
 #endif
@@ -4720,9 +3978,9 @@ LOCALPROC ProcessKeyEvent(blnr down, NSEvent *event)
 LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 {
 	switch ([event type]) {
-		case MyNSEventTypeLeftMouseDown:
-		case MyNSEventTypeRightMouseDown:
-		case MyNSEventTypeOtherMouseDown:
+		case NSEventTypeLeftMouseDown:
+		case NSEventTypeRightMouseDown:
+		case NSEventTypeOtherMouseDown:
 			/*
 				int button = QZ_OtherMouseButtonToSDL(
 					[event buttonNumber]);
@@ -4747,9 +4005,9 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 			}
 			break;
 
-		case MyNSEventTypeLeftMouseUp:
-		case MyNSEventTypeRightMouseUp:
-		case MyNSEventTypeOtherMouseUp:
+		case NSEventTypeLeftMouseUp:
+		case NSEventTypeRightMouseUp:
+		case NSEventTypeOtherMouseUp:
 			/*
 				int button = QZ_OtherMouseButtonToSDL(
 					[event buttonNumber]);
@@ -4764,15 +4022,15 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 			}
 			break;
 
-		case MyNSEventTypeMouseMoved:
+		case NSEventTypeMouseMoved:
 			{
 				ProcessEventLocation(event);
 				ProcessEventModifiers(event);
 			}
 			break;
-		case MyNSEventTypeLeftMouseDragged:
-		case MyNSEventTypeRightMouseDragged:
-		case MyNSEventTypeOtherMouseDragged:
+		case NSEventTypeLeftMouseDragged:
+		case NSEventTypeRightMouseDragged:
+		case NSEventTypeOtherMouseDragged:
 			if (! MyMouseButtonState) {
 				/* doesn't belong to us ? */
 				[NSApp sendEvent: event];
@@ -4781,19 +4039,19 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 				ProcessEventModifiers(event);
 			}
 			break;
-		case MyNSEventTypeKeyUp:
+		case NSEventTypeKeyUp:
 			ProcessKeyEvent(falseblnr, event);
 			break;
-		case MyNSEventTypeKeyDown:
+		case NSEventTypeKeyDown:
 			ProcessKeyEvent(trueblnr, event);
 			break;
-		case MyNSEventTypeFlagsChanged:
+		case NSEventTypeFlagsChanged:
 			ProcessEventModifiers(event);
 			break;
 		/* case NSScrollWheel: */
 		/* case NSSystemDefined: */
 		/* case NSAppKitDefined: */
-		/* case MyNSEventTypeApplicationDefined: */
+		/* case NSEventTypeApplicationDefined: */
 		/* case NSPeriodic: */
 		/* case NSCursorUpdate: */
 		default:
@@ -4823,7 +4081,7 @@ label_retry:
 
 	i = 32;
 	while ((--i >= 0) && (nil != (event =
-		[NSApp nextEventMatchingMask: MyNSAnyEventMask
+		[NSApp nextEventMatchingMask: NSEventMaskAny
 			untilDate: TheUntil
 			inMode: NSDefaultRunLoopMode
 			dequeue: YES])))
@@ -4903,15 +4161,6 @@ label_exit:
 	[pool release];
 }
 
-typedef Boolean (*SecTranslocateIsTranslocatedURL_t)(
-	CFURLRef path, bool *isTranslocated, CFErrorRef * error);
-typedef CFURLRef (*SecTranslocateCreateOriginalPathForURL_t)(
-	CFURLRef translocatedPath, CFErrorRef * error);
-
-#ifndef WantUnTranslocate
-#define WantUnTranslocate 0
-#endif
-
 LOCALFUNC blnr setupWorkingDirectory(void)
 {
 	NSString *myAppDir;
@@ -4919,81 +4168,6 @@ LOCALFUNC blnr setupWorkingDirectory(void)
 	NSString *dataPath;
 	NSBundle *myBundle = [NSBundle mainBundle];
 	NSString *myAppPath = [myBundle bundlePath];
-
-#if WantUnTranslocate
-	{
-		bool isTranslocated;
-		void *sec_handle = NULL;
-		SecTranslocateIsTranslocatedURL_t
-			mySecTranslocateIsTranslocatedURL = NULL;
-		CFURLRef url = NULL;
-		SecTranslocateCreateOriginalPathForURL_t
-			mySecTranslocateCreateOriginalPathForURL = NULL;
-		CFURLRef untranslocatedURL = NULL;
-		NSString *realAppPath = NULL;
-
-		if (NULL == (sec_handle = dlopen(
-			"/System/Library/Frameworks/Security.framework/Security",
-			RTLD_LAZY)))
-		{
-			/* fail */
-		} else
-		if (NULL == (mySecTranslocateIsTranslocatedURL =
-			dlsym(sec_handle, "SecTranslocateIsTranslocatedURL")))
-		{
-			/* fail */
-		} else
-		if (NULL == (url =
-			CFURLCreateWithFileSystemPath(kCFAllocatorDefault,
-				(CFStringRef)myAppPath, kCFURLPOSIXPathStyle, NO)))
-		{
-			/* fail */
-		} else
-		if (! mySecTranslocateIsTranslocatedURL(url, &isTranslocated,
-			NULL))
-		{
-			/* fail */
-		} else
-		if (! isTranslocated) {
-			/* done */
-		} else
-		if (NULL == (mySecTranslocateCreateOriginalPathForURL =
-			dlsym(sec_handle,
-				"SecTranslocateCreateOriginalPathForURL")))
-		{
-			/* fail */
-		} else
-		if (NULL == (untranslocatedURL =
-			mySecTranslocateCreateOriginalPathForURL(url, NULL)))
-		{
-			/* fail */
-		} else
-		if (NULL == (realAppPath =
-			(NSString *)CFURLCopyFileSystemPath(
-				untranslocatedURL, kCFURLPOSIXPathStyle)))
-		{
-			/* fail */
-		} else
-		{
-			myAppPath = realAppPath;
-		}
-
-		if (NULL != realAppPath) {
-			[realAppPath autorelease];
-		}
-		if (NULL != untranslocatedURL) {
-			CFRelease(untranslocatedURL);
-		}
-		if (NULL != url) {
-			CFRelease(url);
-		}
-		if (NULL != sec_handle) {
-			if (0 != dlclose(sec_handle)) {
-				/* dbglog_writeln("dlclose  failed"); */
-			}
-		}
-	}
-#endif /* WantUnTranslocate */
 
 	myAppDir = [myAppPath stringByDeletingLastPathComponent];
 	myAppName = [[[myAppPath lastPathComponent]
@@ -5034,7 +4208,7 @@ LOCALFUNC blnr setupWorkingDirectory(void)
 			http://www.cocoabuilder.com/ post.)
 		*/
 		NSEvent* event = [NSEvent
-			otherEventWithType: MyNSEventTypeApplicationDefined
+			otherEventWithType: NSEventTypeApplicationDefined
 			location: NSMakePoint(0, 0)
 			modifierFlags: 0
 			timestamp: 0.0
