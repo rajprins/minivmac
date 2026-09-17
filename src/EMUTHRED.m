@@ -39,46 +39,66 @@
 extern void ProgramMain(void);
 
 static pthread_t gThread;
+
+/*
+	Recursive, so that a main thread path already holding the lock
+	may call into code that takes it again; the housekeeping path
+	does exactly that.
+
+	Initialised through pthread_once rather than behind a plain
+	"is it ready yet" flag, because such a flag is itself read from
+	both threads. Thread Sanitizer flagged exactly that shape here.
+	The statically initialised alternative,
+	PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP, needs _DARWIN_C_SOURCE
+	and so is not available under the standard this file compiles
+	against.
+*/
 static pthread_mutex_t gLock;
-static bool gLockReady = false;
-static bool gThreadStarted = false;
-static volatile bool gFinished = false;
+static pthread_once_t gLockOnce = PTHREAD_ONCE_INIT;
 
-static void EmuLock_EnsureReady(void)
+static void EmuLock_Init(void)
 {
-	if (! gLockReady) {
-		pthread_mutexattr_t attr;
+	pthread_mutexattr_t attr;
 
-		pthread_mutexattr_init(&attr);
-		/*
-			Recursive, so that a main thread path already holding
-			the lock can call into code that takes it again. The
-			housekeeping path does exactly that.
-		*/
-		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-		pthread_mutex_init(&gLock, &attr);
-		pthread_mutexattr_destroy(&attr);
-
-		gLockReady = true;
-	}
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&gLock, &attr);
+	pthread_mutexattr_destroy(&attr);
 }
+
+/* Touched only on the main thread, by Start and Stop. */
+static bool gThreadStarted = false;
+
+/*
+	Written by the emulator thread, read by the main thread from
+	applicationShouldTerminate, so it must be atomic rather than
+	merely volatile. volatile orders nothing and prevents no tearing.
+*/
+static _Atomic bool gFinished = false;
+
+/*
+	Thread local rather than a comparison against a stored pthread_t.
+	pthread_create may write its handle after the new thread is
+	already running, so both the handle and any "has it started" flag
+	are racy to read from the thread itself. A marker the thread sets
+	on its own entry has no such window.
+*/
+static _Thread_local bool gIsEmuThread = false;
 
 void EmuLock_Acquire(void)
 {
-	EmuLock_EnsureReady();
+	(void) pthread_once(&gLockOnce, EmuLock_Init);
 	pthread_mutex_lock(&gLock);
 }
 
 void EmuLock_Release(void)
 {
-	if (gLockReady) {
-		pthread_mutex_unlock(&gLock);
-	}
+	pthread_mutex_unlock(&gLock);
 }
 
 void EmuLock_Yield(void)
 {
-	if (gLockReady) {
+	{
 		pthread_mutex_unlock(&gLock);
 		/*
 			sched_yield alone is not enough here: the main thread
@@ -99,6 +119,8 @@ void EmuLock_Yield(void)
 static void * EmuThread_Main(void *arg)
 {
 	(void) arg;
+
+	gIsEmuThread = true;
 
 	pthread_setname_np("minivmac emulator");
 
@@ -151,8 +173,6 @@ bool EmuThread_Start(void)
 		return true;
 	}
 
-	EmuLock_EnsureReady();
-
 	if (0 != pthread_create(&gThread, NULL, EmuThread_Main, NULL)) {
 		NSLog(@"EMUTHRED: could not create emulator thread");
 		return false;
@@ -190,9 +210,5 @@ bool EmuThread_HasFinished(void)
 
 bool EmuThread_IsCurrent(void)
 {
-	if (! gThreadStarted) {
-		return false;
-	}
-
-	return (0 != pthread_equal(pthread_self(), gThread));
+	return gIsEmuThread;
 }

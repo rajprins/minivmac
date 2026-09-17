@@ -378,6 +378,73 @@ holding 60.14 Hz without tearing or audio drift — is not yet answered.
 | Generator | `./build.sh` from clean produces a building project; no hand-edits to `.xcodeproj` required |
 | Regression | Boot to desktop from a real ROM and disk image; LocalTalk still functions |
 
+## Thread Sanitizer results
+
+Run on 2026-09-17 against the threaded build. There is no TSan option
+in the generator; the build is produced by overriding settings on the
+command line, so nothing about this diagnostic is baked into `setup/`:
+
+    xcodebuild -project minivmac.xcodeproj -configuration Release \
+      OTHER_CFLAGS="-fsanitize=thread -g -fno-omit-frame-pointer" \
+      OTHER_LDFLAGS="-fsanitize=thread" \
+      OTHER_SWIFT_FLAGS="-sanitize=thread" \
+      GCC_OPTIMIZATION_LEVEL=0 GCC_GENERATE_DEBUGGING_SYMBOLS=YES \
+      DEPLOYMENT_POSTPROCESSING=NO STRIP_INSTALLED_PRODUCT=NO \
+      SEPARATE_STRIP=NO COPY_PHASE_STRIP=NO
+
+Note that `otool -L | grep sanitizer` finds nothing even on a correct
+TSan build; the library is `libclang_rt.tsan_osx_dynamic.dylib`, so
+grep for `clang_rt.tsan`.
+
+**Found and fixed: one race introduced by the thread move.**
+`EmuThread_Start` called `pthread_create` and only then set
+`gThreadStarted`, while the new thread was already reading it from
+`EmuThread_IsCurrent`. The stored `pthread_t` had the same defect
+without being reported, since `pthread_create` may write its handle
+after the thread is running. Both are gone: thread identity is now a
+`_Thread_local` marker the thread sets on its own entry, the lock is
+initialised through `pthread_once` rather than behind a flag read from
+two threads, and `gFinished` is `_Atomic` rather than `volatile`,
+which orders nothing.
+
+**Found, not fixed: the audio boundary is unsynchronised.** Every
+remaining race is between emulator sound state and CoreAudio's render
+thread, which `MySound_Init` creates through
+`HALB_IOThread::DispatchPThread`:
+
+| Site | State |
+|---|---|
+| `ASCEMDEV.c:763`, `:774` in `ASC_SubTick` | emulated Apple Sound Chip |
+| `OSGLUCCO.m:1949` in `MySound_WroteABlock` | `TheFillOffset` |
+| `OSGLUCCO.m:1985`, `:2004` in `MySound_SecondNotify0` | `MinFilledSoundBuffs` |
+| `OSGLUCCO.m:2229` in `MySound_Stop` | `cur_audio` |
+
+These are pre-existing: the sound code has never had any
+synchronisation, and before the thread move the same races existed
+between the main thread and the render thread. The thread move
+relocated one end without creating them. Two of them are in the
+emulator core, so the audio callback is reaching into emulated device
+state directly.
+
+**The coarse emulator lock does not and must not cover this.** A
+realtime audio render thread that blocks on a lock held by the
+emulator would produce dropouts and priority inversion. This boundary,
+unlike the host boundary, is genuinely narrow — a stream of samples —
+so it is the one place where a lock free ring buffer is the right
+tool. That work belongs with the `SNDCOREA.m` extraction.
+
+Until then the races are real but longstanding, and the same ones
+shipped in every previous build.
+
+**Shutdown under TSan is unreliable**: one run aborted with SIGABRT
+and another did not exit within 60 s, whereas the ordinary build exits
+0 every time. `MySound_Stop` racing the render thread is the obvious
+suspect, but that is a hypothesis, not a diagnosis.
+
+**Not yet exercised:** `EmuLock_Yield`, the "all out" speed path.
+Nothing in the run drove the emulator into that mode, so the one place
+the coarse lock is known to cost something remains untested.
+
 ## Implementation status
 
 As of 2026-09-17. Everything listed as done builds clean and has been
