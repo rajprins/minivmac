@@ -2859,9 +2859,30 @@ LOCALPROC CheckSavedMacMsg(void)
 		NSString *longMsg0 =
 			NSStringCreateFromSubstCStr(SavedLongMsg);
 
+		/*
+			Claim the message now, under the lock, so that the
+			next tick does not queue it a second time.
+		*/
 		PresentingMacMsg = trueblnr;
+		SavedBriefMsg = nullpr;
 
-		{
+		/*
+			Presentation is deliberately deferred to a later turn
+			of the run loop rather than done here.
+
+			This is reached from the display link callback with
+			the emulator lock held. Running a modal session from
+			inside a run loop source callback does not present
+			reliably, and holding the lock across it would pin the
+			emulator thread behind an alert. Both problems go away
+			by letting the current callback finish first.
+
+			The block retains the two strings when dispatch copies
+			it, which is what keeps them alive; this file is
+			compiled without ARC but captured object variables are
+			still retained by a copied block.
+		*/
+		dispatch_async(dispatch_get_main_queue(), ^{
 			NSAlert *alert = [[NSAlert alloc] init];
 
 			[alert setAlertStyle: fatal
@@ -2871,32 +2892,21 @@ LOCALPROC CheckSavedMacMsg(void)
 			[alert setInformativeText: longMsg0];
 
 			if (fatal) {
-				/*
-					Nothing can be done but leave, so the only
-					button says so, using the emulator's own
-					localised string for it.
-				*/
 				[alert addButtonWithTitle:
 					NSStringCreateFromSubstCStr(kStrCmdQuit)];
 			}
-			/*
-				For a non fatal message no button is added, so
-				NSAlert supplies its own default, which AppKit
-				localises. The emulator's string table has no
-				"continue" of its own to use here.
-			*/
 
 			(void) [alert runModal];
 
 			[alert release];
-		}
 
-		SavedBriefMsg = nullpr;
-		PresentingMacMsg = falseblnr;
-
-		if (fatal) {
-			ForceMacOff = trueblnr;
-		}
+			EmuLock_Acquire();
+			PresentingMacMsg = falseblnr;
+			if (fatal) {
+				ForceMacOff = trueblnr;
+			}
+			EmuLock_Release();
+		});
 	}
 }
 
