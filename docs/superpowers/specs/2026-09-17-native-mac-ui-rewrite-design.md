@@ -99,19 +99,48 @@ exactly one thread.
 `ProcessOneSystemEvent` move to the main thread as ordinary responder
 methods.
 
-### Cross-thread channels
+### Cross-thread synchronisation
 
-All risk concentrates here.
+This section was revised during implementation. The original plan of
+four lock-free SPSC channels was wrong for this codebase, and the
+reason is worth recording.
 
-| Channel | Direction | Mechanism |
-|---|---|---|
-| Input: keys, mouse, modifiers | main → emu | Lock-free SPSC ring buffer, drained once per tick |
-| Commands: reset, interrupt, insert disk, set speed, quit | main → emu | Same ring, tagged variants |
-| Framebuffer | emu → main | Triple buffer; completed frame index published atomically |
-| Status: speed, inserted disks, running state | emu → main | Atomics, read by the display callback |
+`CheckForSavedTasks` (`OSGLUCCO.m:3698`) is called from
+`WaitForNextTick`, so after the thread move it runs on the emulator
+thread once per tick — and it is full of main-thread-only AppKit:
+`MyUpdateRendererGeometry` reads `[MyNSview frame]` and
+`backingScaleFactor`, `[[NSScreen mainScreen] frame]` is queried,
+`ReCreateMainWindow` creates and destroys an `NSWindow`,
+`EnterBackground` and `LeaveBackground` hide and show the cursor, and
+`CheckMouseState` reads `[NSEvent mouseLocation]`.
 
-Commands share the input ring deliberately: "insert disk" and the
-keystrokes around it must not reorder.
+The host/emulator boundary is therefore wide and crossed every tick,
+not narrow. Lock-free channels suit a narrow boundary; a wide one
+would need a dozen separately marshalled operations, each its own
+opportunity for a race.
+
+**Revised design: one coarse emulator lock.**
+
+- A single recursive mutex guards all emulator state.
+- The emulator thread holds it while computing a tick and releases it
+  while pacing, which is most of every 16.6 ms at ordinary speeds.
+- The main thread acquires it to touch emulator state at all: input
+  handling, host housekeeping, and snapshotting the frame.
+- `CheckForSavedTasks` moves to the main thread, driven by the display
+  link callback, whose ~60 Hz cadence matches what it expects.
+
+Consequences, stated plainly:
+
+- The input ring buffer is no longer needed. A main-thread key handler
+  takes the lock and calls `Keyboard_UpdateKeyMap2` directly. No event
+  structs, no queue, no ownership transfer for disk image paths.
+- The framebuffer triple buffer is no longer needed either, because the
+  lock already serialises the emulator's conversion into `ScalingBuff`
+  against the main thread's upload.
+- **At "all out" speed the emulator never sleeps and never yields, so
+  the main thread would starve and the UI would stutter.** An explicit
+  periodic lock yield is required in that mode. This is the one place
+  where the coarse lock costs something real.
 
 ### File layout
 

@@ -150,6 +150,18 @@ GLOBALPROC MNVM_PostSetSpeedValue(int v)
 	SetSpeedValue((kMNVMSpeedAllOut == v) ? (ui3b) -1 : (ui3b) v);
 }
 
+/*
+	Asks the emulator loop to leave, using the flag the loop already
+	checks rather than introducing a second mechanism. Called by
+	EMUTHRED while holding the emulator lock.
+*/
+GLOBALFUNC bool EmuThread_RequestStop(void)
+{
+	ForceMacOff = trueblnr;
+
+	return true;
+}
+
 /* --- text translation --- */
 
 LOCALPROC UniCharStrFromSubstCStr(int *L, unichar *x, char *s)
@@ -2606,30 +2618,24 @@ LOCALPROC MyMenuSetup(void)
 LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 	ui4r bottom, ui4r right)
 {
-#if 0
-	if ([MyNSview lockFocusIfCanDraw])
 	/*
-		when compiled with XCode 11.4.1,
-		running in macOS 10.15, this causes
-		drawRect to later be called for
-		entire window.
-	*/
-#endif
-	if ([MyNSview canDraw])
-	{
-		MyDrawWithMetal(top, left, bottom, right);
-#if 0
-		[MyNSview unlockFocus];
-#endif
-	}
+		This used to be gated on [MyNSview canDraw], which was
+		right for a view that drew through drawRect but is wrong
+		for a layer hosting Metal view, and is deprecated as of
+		macOS 10.14 for exactly that reason.
 
-/*
-	would make sense to instead call:
-		[MyNSview setNeedsDisplayInRect:rectangle];
-	but that doesn't work either when
-		compiled with XCode 11.4.1. drawRect
-		seems to think entire view is dirty.
-*/
+		canDraw answers NO while the window is not yet visible or
+		is occluded. Since Metal presents through the layer rather
+		than through AppKit's drawing machinery, that gate simply
+		dropped frames: the window stayed black whenever drawing
+		began before it came to the front, and drew correctly
+		whenever it happened to be frontmost first. The symptom was
+		intermittent, which is what made it worth a comment.
+
+		MyDrawWithMetal already declines to draw when there is no
+		renderer, so no further check is needed here.
+	*/
+	MyDrawWithMetal(top, left, bottom, right);
 }
 
 LOCALPROC MyDrawChangesAndClear(void)

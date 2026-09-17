@@ -187,6 +187,7 @@ static void DoAllSrcFiles(tDoOneCFile p)
 		and guard against a second inclusion.
 	*/
 	p("MTLRENDR", kDepDirCSrc, kCSrcFlgmOjbc, nullpr);
+	p("EMUTHRED", kDepDirCSrc, kCSrcFlgmOjbc, nullpr);
 	p("EMUCTLAP", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);
 	p("CCOBRIDG", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);
 	p("EMUBRIDG", kDepDirCSrc,
