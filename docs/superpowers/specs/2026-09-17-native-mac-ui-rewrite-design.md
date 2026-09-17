@@ -391,6 +391,29 @@ verified by running the app, not only by compiling it.
 | Swift / Objective-C / C boundary | `EMUCTLAP.h`, `CCOBRIDG.h`, `EMUBRIDG.swift` |
 | Metal renderer replacing OpenGL 1.1 | `MTLRENDR.h`, `MTLRENDR.m` |
 | Framework swap, config includes | `USFILDEF.i`, `WRCNFGAP.i` |
+| Emulator on its own thread, AppKit owns main | `EMUTHRED.h`, `EMUTHRED.m`, `OSGLUCCO.m` |
+
+The thread move is in place and verified. `main` now runs `[NSApp run]`
+for the life of the process; `ProgramMain` runs on a thread named
+"minivmac emulator". `WaitForNextTick` only paces and releases the
+lock while sleeping. Events arrive through a `MyClassApplication`
+override of `sendEvent:`, which takes the lock and asks
+`ProcessOneSystemEvent` whether the emulator consumed the event,
+passing it to `super` when it did not. `CheckForSavedTasks` and
+presentation run on the main thread from a `CADisplayLink` taken from
+`NSScreen`, so the link survives the window being recreated.
+
+Verified by running: System 6.0.8 boots and renders in colour with the
+emulator off the main thread, `sample` shows the main thread idle in
+`[NSApp run]` inside `nextEventMatchingMask`, and a scripted quit exits
+with status 0 through the full `UnInitOSGLU` path.
+
+Behaviour change worth knowing: quitting is routed through the
+emulator, so `applicationShouldTerminate` returns `NSTerminateCancel`
+and asks the emulator to stop; the thread then stops the run loop so
+`main` can unwind and clean up. A script that sends a `quit` Apple
+Event therefore gets back `-128` (cancelled) even though the
+application does quit cleanly.
 
 Two bugs were found and fixed during this work, both worth knowing
 about because they are easy to reintroduce:
@@ -406,14 +429,12 @@ about because they are easy to reintroduce:
    `wantsLayer = YES`, or AppKit treats the view as layer-backed and
    contends for layer ownership.
 
-**Not done** — the larger remaining half, now de-risked but not
-written:
+**Not done.** With the thread move landed, SwiftUI's blocking
+prerequisite is satisfied, so what remains is the user interface work
+itself plus cleanup:
 
 | Area | Files |
 |---|---|
-| Emulator on a background thread | `EMUTHRED.m`, `XTHRDQUE.h` |
-| Events to main-thread responders | `EVNTINPT.m` |
-| `CADisplayLink` driven presentation | `MTLRENDR.m` |
 | Native menu bar | `APPMENUS.swift` |
 | SwiftUI Settings and About | `SETTINGS.swift`, `ABOUTPNL.swift` |
 | `CONTROLM.h` split, overlay deleted | `KEYRMPMC.h`, `ROMVALID.h` |

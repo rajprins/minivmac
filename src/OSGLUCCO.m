@@ -136,6 +136,7 @@ LOCALPROC dbglog_close0(void)
 
 #include "EMUCTLAP.h"
 #import "MTLRENDR.h"
+#import "EMUTHRED.h"
 #import "minivmac-Swift.h"
 
 GLOBALFUNC int MNVM_GetSpeedValue(void)
@@ -1547,6 +1548,14 @@ LOCALVAR blnr gTrueBackgroundFlag = falseblnr;
 
 LOCALVAR ui3p ScalingBuff = nullpr;
 
+/* Frame handed from the emulating thread to the main thread. */
+LOCALVAR blnr FrameIsReady = falseblnr;
+LOCALVAR blnr FrameIsColor = falseblnr;
+LOCALVAR int FrameSrcX = 0;
+LOCALVAR int FrameSrcY = 0;
+LOCALVAR int FrameSrcW = 0;
+LOCALVAR int FrameSrcH = 0;
+
 LOCALVAR ui3p CLUT_final;
 
 #define CLUT_finalsz1 (256 * 8)
@@ -1708,16 +1717,42 @@ LOCALPROC MyDrawWithMetal(ui4r top, ui4r left, ui4r bottom, ui4r right)
 
 	UpdateLuminanceCopy(top, left, bottom, right);
 
-	MTLRenderer_Present(ScalingBuff,
+	/*
+		Conversion happens on whichever thread is emulating, but
+		presentation must not: it reads the layer, whose geometry
+		belongs to AppKit. So the converted frame is recorded here
+		and MyPresentPendingFrame draws it from the display link on
+		the main thread. The emulator lock covers ScalingBuff, so
+		the two never overlap.
+	*/
+	FrameSrcX = srcX;
+	FrameSrcY = srcY;
+	FrameSrcW = srcW;
+	FrameSrcH = srcH;
 #if 0 != vMacScreenDepth
-		UseColorMode ? true : false,
+	FrameIsColor = UseColorMode ? trueblnr : falseblnr;
 #else
-		false,
+	FrameIsColor = falseblnr;
 #endif
-		srcX, srcY, srcW, srcH);
+	FrameIsReady = trueblnr;
 
 label_exit:
 	;
+}
+
+/*
+	Presents whatever the emulator last converted. Main thread only,
+	with the emulator lock held by the caller.
+*/
+LOCALPROC MyPresentPendingFrame(void)
+{
+	if (FrameIsReady) {
+		FrameIsReady = falseblnr;
+
+		MTLRenderer_Present(ScalingBuff,
+			FrameIsColor ? true : false,
+			FrameSrcX, FrameSrcY, FrameSrcW, FrameSrcH);
+	}
 }
 
 
@@ -3946,8 +3981,21 @@ LOCALPROC ProcessKeyEvent(blnr down, NSEvent *event)
 	Keyboard_UpdateKeyMap2(Keyboard_RemapMac(scancode), down);
 }
 
-LOCALPROC ProcessOneSystemEvent(NSEvent *event)
+/*
+	Handles one event, returning whether the emulator consumed it.
+
+	Previously this was driven by the hand written event pump in
+	WaitForNextTick and passed unwanted events on with
+	[NSApp sendEvent:]. It is now called from MyClassApplication's
+	sendEvent: override on the main thread, so declining an event is
+	expressed by returning false and letting NSApplication have it.
+
+	The caller holds the emulator lock.
+*/
+LOCALFUNC blnr ProcessOneSystemEvent(NSEvent *event)
 {
+	blnr consumed = trueblnr;
+
 	switch ([event type]) {
 		case NSEventTypeLeftMouseDown:
 		case NSEventTypeRightMouseDown:
@@ -3972,7 +4020,7 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 				MyMouseButtonSet(trueblnr);
 			} else {
 				/* doesn't belong to us */
-				[NSApp sendEvent: event];
+				consumed = falseblnr;
 			}
 			break;
 
@@ -3987,7 +4035,7 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 			ProcessEventModifiers(event);
 			if (! MyMouseButtonState) {
 				/* doesn't belong to us */
-				[NSApp sendEvent: event];
+				consumed = falseblnr;
 			} else {
 				MyMouseButtonSet(falseblnr);
 			}
@@ -4004,7 +4052,7 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 		case NSEventTypeOtherMouseDragged:
 			if (! MyMouseButtonState) {
 				/* doesn't belong to us ? */
-				[NSApp sendEvent: event];
+				consumed = falseblnr;
 			} else {
 				ProcessEventLocation(event);
 				ProcessEventModifiers(event);
@@ -4026,42 +4074,78 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 		/* case NSPeriodic: */
 		/* case NSCursorUpdate: */
 		default:
-			[NSApp sendEvent: event];
+			consumed = falseblnr;
 	}
+
+	return consumed;
+}
+
+/*
+	NSApplication subclass so that events reach the emulator on the
+	main thread through the ordinary AppKit path, instead of being
+	pulled out of the queue by a loop of our own.
+*/
+
+@interface MyClassApplication : NSApplication
+@end
+
+@implementation MyClassApplication
+
+- (void)sendEvent:(NSEvent *)event
+{
+	blnr consumed;
+
+	EmuLock_Acquire();
+	consumed = ProcessOneSystemEvent(event);
+	EmuLock_Release();
+
+	if (! consumed) {
+		[super sendEvent: event];
+	}
+}
+
+@end
+
+/*
+	Paces the emulator to the next tick.
+
+	This used to do two jobs: pump AppKit events and pace. It now
+	only paces. Events are delivered by AppKit on the main thread,
+	and the host housekeeping that CheckForSavedTasks performs also
+	runs on the main thread, because it touches AppKit.
+
+	The emulator lock is released while sleeping, which is most of
+	every tick at ordinary speeds, and that is when the main thread
+	gets to run. At "all out" speed there is no sleep, so the lock
+	has to be yielded explicitly or the interface would stop
+	responding.
+
+	Reached from WaitForRom during startup as well, which runs on the
+	main thread before the emulator thread exists, hence the
+	EmuThread_IsCurrent guard around every lock operation.
+*/
+
+LOCALPROC MySleepSeconds(double seconds)
+{
+	struct timespec rqt;
+	struct timespec rmt;
+
+	if (seconds <= 0.0) {
+		return;
+	}
+
+	rqt.tv_sec = (time_t)seconds;
+	rqt.tv_nsec = (long)((seconds - (double)rqt.tv_sec) * 1000000000.0);
+
+	(void) nanosleep(&rqt, &rmt);
 }
 
 GLOBALOSGLUPROC WaitForNextTick(void)
 {
-	NSDate *TheUntil;
-	int i;
-	NSEvent *event;
-	NSAutoreleasePool *pool;
-
-	pool = [[NSAutoreleasePool alloc] init];
-
-	NSDate *TheDistantFuture = [NSDate distantFuture];
-	NSDate *TheDistantPast = [NSDate distantPast];
-#if 0
-	NSDate *TheNextTick = [NSDate
-		dateWithTimeIntervalSinceReferenceDate: NextTickChangeTime];
-#endif
-
-	TheUntil = TheDistantPast;
+	blnr onEmuThread = EmuThread_IsCurrent();
+	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
 label_retry:
-
-	i = 32;
-	while ((--i >= 0) && (nil != (event =
-		[NSApp nextEventMatchingMask: NSEventMaskAny
-			untilDate: TheUntil
-			inMode: NSDefaultRunLoopMode
-			dequeue: YES])))
-	{
-		ProcessOneSystemEvent(event);
-		TheUntil = TheDistantPast;
-	}
-
-	CheckForSavedTasks();
 
 	if (ForceMacOff) {
 		goto label_exit;
@@ -4069,49 +4153,44 @@ label_retry:
 
 	if (CurSpeedStopped) {
 		DoneWithDrawingForTick();
-		TheUntil = TheDistantFuture;
+
+		/*
+			Nothing to compute while stopped. The old code blocked
+			on the event queue until something arrived; now it
+			simply idles, leaving the lock free so the main thread
+			can act on whatever the user does next.
+		*/
+		if (onEmuThread) {
+			EmuLock_Release();
+			MySleepSeconds(0.010);
+			EmuLock_Acquire();
+		} else {
+			MySleepSeconds(0.010);
+		}
 		goto label_retry;
 	}
 
 	if (ExtraTimeNotOver()) {
-#if 1
-#if 0 && EnableAutoSlow
-		if ((QuietSubTicks >= 16384)
-			&& (QuietTime >= 34)
-			&& ! WantNotAutoSlow)
-		{
-			TheUntil = [NSDate
-				dateWithTimeIntervalSinceReferenceDate:
-					(NextTickChangeTime + 0.50)];
-		} else
-#endif
-		{
-			NSTimeInterval inTimeout =
-				NextTickChangeTime - LatestTime;
-			if (inTimeout > 0.0) {
-				struct timespec rqt;
-				struct timespec rmt;
+		double inTimeout = NextTickChangeTime - LatestTime;
 
-				rqt.tv_sec = 0;
-				rqt.tv_nsec = inTimeout * 1000000000.0;
-				(void) nanosleep(&rqt, &rmt);
+		if (inTimeout > 0.0) {
+			if (onEmuThread) {
+				EmuLock_Release();
+				MySleepSeconds(inTimeout);
+				EmuLock_Acquire();
+			} else {
+				MySleepSeconds(inTimeout);
 			}
-			TheUntil = TheDistantPast;
+		} else if (onEmuThread) {
+			/*
+				Behind schedule, or running all out. There is no
+				sleep to hide behind, so hand the lock over
+				briefly on purpose.
+			*/
+			EmuLock_Yield();
 		}
-#else
-		/*
-			This has higher overhead.
-		*/
-		TheUntil = TheNextTick;
-#endif
 		goto label_retry;
 	}
-
-#if 0
-	if (! gTrueBackgroundFlag) {
-		CheckMouseState();
-	}
-#endif
 
 	if (CheckDateTime()) {
 #if MySoundEnabled
@@ -4198,6 +4277,29 @@ LOCALFUNC blnr setupWorkingDirectory(void)
 	WantScreensChangedCheck = trueblnr;
 }
 
+/*
+	Quit has to go through the emulator rather than around it, or the
+	loop would be killed mid tick and UnInitOSGLU would never run.
+	So a quit request asks the emulator to stop and cancels the
+	termination; the emulator thread then stops the run loop once it
+	has actually left, and main unwinds and cleans up.
+*/
+- (NSApplicationTerminateReply)applicationShouldTerminate:
+	(NSApplication *)sender
+{
+	(void) sender;
+
+	if (EmuThread_HasFinished()) {
+		return NSTerminateNow;
+	}
+
+	EmuLock_Acquire();
+	(void) EmuThread_RequestStop();
+	EmuLock_Release();
+
+	return NSTerminateCancel;
+}
+
 - (IBAction)performSpecialMoreCommands:(id)sender
 {
 	DoMoreCommandsMsg();
@@ -4215,11 +4317,85 @@ LOCALFUNC blnr setupWorkingDirectory(void)
 
 @end
 
+/*
+	Drives the host side of each frame from the main thread: the
+	housekeeping that CheckForSavedTasks performs, which touches
+	AppKit and so cannot run on the emulator thread, and then
+	presentation of whatever frame the emulator has converted.
+
+	A display link is used rather than a timer so that presentation
+	is aligned to the refresh the window is actually on.
+*/
+
+@interface MyClassFrameDriver : NSObject
+- (void)frameTick:(id)sender;
+@end
+
+@implementation MyClassFrameDriver
+
+- (void)frameTick:(id)sender
+{
+	(void) sender;
+
+	EmuLock_Acquire();
+
+	CheckForSavedTasks();
+	MyPresentPendingFrame();
+
+	EmuLock_Release();
+}
+
+@end
+
+LOCALVAR MyClassFrameDriver *MyFrameDriver = nil;
+LOCALVAR CADisplayLink *MyFrameLink = nil;
+
+LOCALFUNC blnr MyStartFrameDriver(void)
+{
+	if (nil != MyFrameLink) {
+		return trueblnr;
+	}
+
+	MyFrameDriver = [[MyClassFrameDriver alloc] init];
+
+	/*
+		Taken from the screen rather than the view, so that it
+		survives the window being recreated on a magnify or full
+		screen toggle.
+	*/
+	MyFrameLink = [[[NSScreen mainScreen]
+		displayLinkWithTarget: MyFrameDriver
+		selector: @selector(frameTick:)] retain];
+
+	if (nil == MyFrameLink) {
+		NSLog(@"could not create display link");
+		return falseblnr;
+	}
+
+	[MyFrameLink addToRunLoop: [NSRunLoop mainRunLoop]
+		forMode: NSRunLoopCommonModes];
+
+	return trueblnr;
+}
+
+LOCALPROC MyStopFrameDriver(void)
+{
+	if (nil != MyFrameLink) {
+		[MyFrameLink invalidate];
+		[MyFrameLink release];
+		MyFrameLink = nil;
+	}
+	if (nil != MyFrameDriver) {
+		[MyFrameDriver release];
+		MyFrameDriver = nil;
+	}
+}
+
 LOCALVAR MyClassApplicationDelegate *MyApplicationDelegate = nil;
 
 LOCALFUNC blnr InitCocoaStuff(void)
 {
-	NSApplication *MyNSApp = [NSApplication sharedApplication];
+	NSApplication *MyNSApp = [MyClassApplication sharedApplication];
 		/*
 			in Xcode 6.2, MyNSApp isn't the same as NSApp,
 			breaks NSApp setDelegate
@@ -4448,11 +4624,26 @@ LOCALPROC UnInitOSGLU(void)
 
 int main(int argc, char **argv)
 {
+	(void) argc;
+	(void) argv;
+
 	ZapOSGLUVars();
 
 	if (InitOSGLU()) {
-		ProgramMain();
+		if (MyStartFrameDriver())
+		if (EmuThread_Start())
+		{
+			/*
+				The main thread now belongs to AppKit for the rest
+				of the run. The emulator loop, which used to live
+				here, runs on its own thread.
+			*/
+			[NSApp run];
+		}
 	}
+
+	EmuThread_Stop();
+	MyStopFrameDriver();
 	UnInitOSGLU();
 
 	return 0;

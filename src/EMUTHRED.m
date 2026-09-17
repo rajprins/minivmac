@@ -38,13 +38,6 @@
 */
 extern void ProgramMain(void);
 
-/*
-	Set by the backend so that the thread can ask the emulator to
-	stop. This is the same flag the emulator loop already checks, so
-	stopping uses the existing mechanism rather than a new one.
-*/
-extern bool EmuThread_RequestStop(void);
-
 static pthread_t gThread;
 static pthread_mutex_t gLock;
 static bool gLockReady = false;
@@ -123,11 +116,30 @@ static void * EmuThread_Main(void *arg)
 	gFinished = true;
 
 	/*
-		The emulator has stopped, so the application should follow.
-		Termination has to be requested on the main thread.
+		The emulator has left its loop, so the application should
+		follow. This stops the run loop rather than calling
+		terminate, because terminate exits the process without
+		unwinding main, which would skip UnInitOSGLU and with it
+		the sound teardown, the drive flush and the menu bar
+		restore.
+
+		NSApplication only notices a stop when it next handles an
+		event, so one is posted.
 	*/
 	dispatch_async(dispatch_get_main_queue(), ^{
-		[NSApp terminate: nil];
+		[NSApp stop: nil];
+
+		NSEvent *wake = [NSEvent
+			otherEventWithType: NSEventTypeApplicationDefined
+			location: NSMakePoint(0, 0)
+			modifierFlags: 0
+			timestamp: 0.0
+			windowNumber: 0
+			context: nil
+			subtype: 0
+			data1: 0
+			data2: 0];
+		[NSApp postEvent: wake atStart: YES];
 	});
 
 	return NULL;
@@ -174,4 +186,13 @@ void EmuThread_Stop(void)
 bool EmuThread_HasFinished(void)
 {
 	return gFinished;
+}
+
+bool EmuThread_IsCurrent(void)
+{
+	if (! gThreadStarted) {
+		return false;
+	}
+
+	return (0 != pthread_equal(pthread_self(), gThread));
 }

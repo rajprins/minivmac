@@ -70,6 +70,22 @@ extern void EmuThread_Stop(void);
 extern bool EmuThread_HasFinished(void);
 
 /*
+	True when called from the emulator thread. WaitForNextTick needs
+	this because it is also reached from WaitForRom during startup,
+	which runs on the main thread before the emulator thread exists.
+	Releasing the lock there would be releasing a mutex this thread
+	does not hold.
+*/
+extern bool EmuThread_IsCurrent(void);
+
+/*
+	Implemented by the backend, which owns the flag the emulator loop
+	checks. Declared here so that both sides agree on the prototype.
+	Call with the emulator lock held.
+*/
+extern bool EmuThread_RequestStop(void);
+
+/*
 	The emulator lock. Recursive, so a main thread path that already
 	holds it may call into code that takes it again.
 */
