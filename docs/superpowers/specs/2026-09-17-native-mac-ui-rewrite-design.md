@@ -459,6 +459,7 @@ verified by running the app, not only by compiling it.
 | Metal renderer replacing OpenGL 1.1 | `MTLRENDR.h`, `MTLRENDR.m` |
 | Framework swap, config includes | `USFILDEF.i`, `WRCNFGAP.i` |
 | Emulator on its own thread, AppKit owns main | `EMUTHRED.h`, `EMUTHRED.m`, `OSGLUCCO.m` |
+| Native menu bar, SwiftUI Settings and About | `APPMENUS.swift`, `SETTINGS.swift`, `ABOUTPNL.swift`, `EMUCTLAP.h`, `EMUBRIDG.swift` |
 
 The thread move is in place and verified. `main` now runs `[NSApp run]`
 for the life of the process; `ProgramMain` runs on a thread named
@@ -496,14 +497,31 @@ about because they are easy to reintroduce:
    `wantsLayer = YES`, or AppKit treats the view as layer-backed and
    contends for layer ownership.
 
-**Not done.** With the thread move landed, SwiftUI's blocking
-prerequisite is satisfied, so what remains is the user interface work
-itself plus cleanup:
+The chrome is in. The menu bar is Apple / Mini vMac / File / Machine /
+View / Window, with Control key equivalents because the guest takes
+every Command keystroke. Check marks and enablement are answered in
+`validateMenuItem` rather than pushed, since the emulator changes that
+state on its own; the Eject submenu is rebuilt in `menuNeedsUpdate`
+for the same reason. Settings and About are SwiftUI hosted in
+`NSHostingView`, because SwiftUI's `Settings` scene needs the SwiftUI
+App lifecycle and AppKit owns this application.
+
+`EMUCTLAP.h` grew from the two probe functions into the real runtime
+surface: speed, pause, magnify, full screen, background, auto slow,
+reset, interrupt, insert, per drive eject, plus capability queries so
+the interface does not offer controls for features this build was
+generated without. Every function takes the emulator lock itself, so
+the Swift side cannot forget to.
+
+Verified by running: the menu bar enumerates correctly through the
+accessibility API, and the Settings window renders with live values
+read out of the emulator — it showed 16x, which is the `-speed 4` the
+build was generated with.
+
+**Not done.**
 
 | Area | Files |
 |---|---|
-| Native menu bar | `APPMENUS.swift` |
-| SwiftUI Settings and About | `SETTINGS.swift`, `ABOUTPNL.swift` |
 | `CONTROLM.h` split, overlay deleted | `KEYRMPMC.h`, `ROMVALID.h` |
 | Native fullscreen | `OSGLUCCO.m` |
 | `NSAlert`, deprecation sweep, ARC | all |

@@ -11,6 +11,8 @@
 /setuptool
 /makefilegen
 /*.exe
+/*.dsk
+/*.img
 /*.ROM
 remove*
 

@@ -192,6 +192,12 @@ static void DoAllSrcFiles(tDoOneCFile p)
 	p("CCOBRIDG", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);
 	p("EMUBRIDG", kDepDirCSrc,
 		kCSrcFlgmSwift | kCSrcFlgmNoHeader, nullpr);
+	p("APPMENUS", kDepDirCSrc,
+		kCSrcFlgmSwift | kCSrcFlgmNoHeader, nullpr);
+	p("SETTINGS", kDepDirCSrc,
+		kCSrcFlgmSwift | kCSrcFlgmNoHeader, nullpr);
+	p("ABOUTPNL", kDepDirCSrc,
+		kCSrcFlgmSwift | kCSrcFlgmNoHeader, nullpr);
 
 	p("CNFUIPIC", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);
 	p("CNFUDPIC", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);

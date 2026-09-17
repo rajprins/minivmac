@@ -18,49 +18,148 @@
 	EMUlator BRIDGe
 
 	The single point at which Swift meets the C emulator. Every other
-	Swift file in this target talks to this type and never touches the
-	C surface directly, which keeps C types out of the view layer.
+	Swift file talks to this type and never touches the C surface
+	directly, which is what keeps C types out of the view layer.
 
-	Reads are answered from the status published by the emulator
-	thread. Writes are posted as commands and take effect on the next
-	emulator tick, so a setter here is a request, never an immediate
-	mutation.
+	Reads go straight through to the emulator, which is cheap: the
+	accessors in EMUCTLAP take the emulator lock, and at ordinary
+	speeds that lock is free for most of every tick.
+
+	Writes are requests. The emulator polls the flags they set, so a
+	change here takes effect on a following tick rather than at once.
+	Nothing in the interface should assume a setter is visible
+	immediately.
 */
 
 import Foundation
+import SwiftUI
 
-@objc(MNVMEmulatorBridge)
-final class EmulatorBridge: NSObject {
+/// Emulated speed, as offered in the interface.
+enum EmulatorSpeed: Int, CaseIterable, Identifiable {
+	case x1 = 0
+	case x2 = 1
+	case x4 = 2
+	case x8 = 3
+	case x16 = 4
+	case x32 = 5
+	case allOut = -1
 
-	@objc static let shared = EmulatorBridge()
+	var id: Int { rawValue }
 
-	private override init() {
-		super.init()
+	var title: String {
+		switch self {
+		case .x1: return "1×"
+		case .x2: return "2×"
+		case .x4: return "4×"
+		case .x8: return "8×"
+		case .x16: return "16×"
+		case .x32: return "32×"
+		case .allOut: return "All Out"
+		}
+	}
+}
+
+final class EmulatorBridge: ObservableObject {
+
+	static let shared = EmulatorBridge()
+
+	private init() {
+		refresh()
 	}
 
-	/// Speed as an exponent: 0 is 1x, 5 is 32x. `nil` means all out.
-	var speedMultiplierExponent: Int? {
-		get {
-			let v = MNVM_GetSpeedValue()
-			return v == kMNVMSpeedAllOut ? nil : Int(v)
-		}
-		set {
-			MNVM_PostSetSpeedValue(
-				newValue.map(Int32.init) ?? Int32(kMNVMSpeedAllOut))
+	// MARK: what this build can do
+
+	let hasMagnify = MNVM_HasMagnify()
+	let hasFullScreen = MNVM_HasFullScreen()
+	let hasSound = MNVM_HasSound()
+	let driveCount = Int(MNVM_GetDriveCount())
+
+	// MARK: published state
+
+	@Published var speed: EmulatorSpeed = .x1 {
+		didSet {
+			guard !isRefreshing, oldValue != speed else { return }
+			MNVM_PostSetSpeedValue(Int32(speed.rawValue))
 		}
 	}
+
+	@Published var isStopped: Bool = false {
+		didSet {
+			guard !isRefreshing, oldValue != isStopped else { return }
+			MNVM_PostSetSpeedStopped(isStopped)
+		}
+	}
+
+	@Published var magnify: Bool = false {
+		didSet {
+			guard !isRefreshing, oldValue != magnify else { return }
+			MNVM_PostSetMagnify(magnify)
+		}
+	}
+
+	@Published var fullScreen: Bool = false {
+		didSet {
+			guard !isRefreshing, oldValue != fullScreen else { return }
+			MNVM_PostSetFullScreen(fullScreen)
+		}
+	}
+
+	@Published var runInBackground: Bool = false {
+		didSet {
+			guard !isRefreshing, oldValue != runInBackground else { return }
+			MNVM_PostSetRunInBackground(runInBackground)
+		}
+	}
+
+	@Published var autoSlow: Bool = true {
+		didSet {
+			guard !isRefreshing, oldValue != autoSlow else { return }
+			MNVM_PostSetAutoSlow(autoSlow)
+		}
+	}
+
+	/// Which drives currently hold an image.
+	@Published var insertedDrives: [Int] = []
 
 	/*
-		Boundary probe. Confirms that Swift can call into C and that
-		Objective-C can call back into Swift through the generated
-		interface header. Called once during startup.
+		Guards the didSet observers while state is being pulled back
+		out of the emulator. Without it, refreshing would post every
+		value straight back as a fresh request, and a change the
+		emulator made itself would be immediately overwritten by the
+		interface echoing the old one.
 	*/
-	@objc static func describeBoundary() -> String {
-		let bridge = EmulatorBridge.shared
-		if let e = bridge.speedMultiplierExponent {
-			return "swift bridge live, speed exponent \(e)"
-		} else {
-			return "swift bridge live, speed all out"
+	private var isRefreshing = false
+
+	// MARK: reading back
+
+	/// Pulls current emulator state into the published properties.
+	func refresh() {
+		isRefreshing = true
+		defer { isRefreshing = false }
+
+		speed = EmulatorSpeed(rawValue: Int(MNVM_GetSpeedValue())) ?? .x1
+		isStopped = MNVM_GetSpeedStopped()
+		magnify = MNVM_GetMagnify()
+		fullScreen = MNVM_GetFullScreen()
+		runInBackground = MNVM_GetRunInBackground()
+		autoSlow = MNVM_GetAutoSlow()
+
+		insertedDrives = (0 ..< driveCount).filter {
+			MNVM_GetDriveInserted(Int32($0))
 		}
+	}
+
+	var anyDriveInserted: Bool { MNVM_GetAnyDriveInserted() }
+
+	// MARK: actions
+
+	func reset() { MNVM_PostReset() }
+	func interrupt() { MNVM_PostInterrupt() }
+	func insertDisk() { MNVM_PostInsertDisk() }
+	func requestQuit() { MNVM_PostQuit() }
+
+	func eject(drive: Int) {
+		MNVM_PostEjectDrive(Int32(drive))
+		refresh()
 	}
 }

@@ -139,16 +139,239 @@ LOCALPROC dbglog_close0(void)
 #import "EMUTHRED.h"
 #import "minivmac-Swift.h"
 
-GLOBALFUNC int MNVM_GetSpeedValue(void)
+/*
+	Implementation of the narrow C surface declared in EMUCTLAP.h.
+
+	These live here because the emulator globals they touch are part
+	of this translation unit, reached through the unity build
+	includes above.
+
+	Each one takes the emulator lock, so the Swift side cannot forget
+	to. The lock is recursive, so being called from a main thread
+	path that already holds it, such as the display link handler, is
+	fine.
+*/
+
+bool MNVM_HasMagnify(void)
 {
-	return ((ui3b) -1 == SpeedValue)
-		? kMNVMSpeedAllOut
-		: (int) SpeedValue;
+#if EnableMagnify
+	return true;
+#else
+	return false;
+#endif
 }
 
-GLOBALPROC MNVM_PostSetSpeedValue(int v)
+bool MNVM_HasFullScreen(void)
 {
+#if VarFullScreen
+	return true;
+#else
+	return false;
+#endif
+}
+
+bool MNVM_HasSound(void)
+{
+#if MySoundEnabled
+	return true;
+#else
+	return false;
+#endif
+}
+
+int MNVM_GetSpeedValue(void)
+{
+	int v;
+
+	EmuLock_Acquire();
+	v = ((ui3b) -1 == SpeedValue)
+		? kMNVMSpeedAllOut
+		: (int) SpeedValue;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetSpeedValue(int v)
+{
+	EmuLock_Acquire();
 	SetSpeedValue((kMNVMSpeedAllOut == v) ? (ui3b) -1 : (ui3b) v);
+	EmuLock_Release();
+}
+
+bool MNVM_GetSpeedStopped(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = SpeedStopped ? true : false;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetSpeedStopped(bool v)
+{
+	EmuLock_Acquire();
+	SpeedStopped = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+}
+
+bool MNVM_GetMagnify(void)
+{
+	bool v = false;
+
+#if EnableMagnify
+	EmuLock_Acquire();
+	v = WantMagnify ? true : false;
+	EmuLock_Release();
+#endif
+
+	return v;
+}
+
+void MNVM_PostSetMagnify(bool v)
+{
+#if EnableMagnify
+	EmuLock_Acquire();
+	WantMagnify = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+#else
+	(void) v;
+#endif
+}
+
+bool MNVM_GetFullScreen(void)
+{
+	bool v = false;
+
+#if VarFullScreen
+	EmuLock_Acquire();
+	v = WantFullScreen ? true : false;
+	EmuLock_Release();
+#endif
+
+	return v;
+}
+
+void MNVM_PostSetFullScreen(bool v)
+{
+#if VarFullScreen
+	EmuLock_Acquire();
+	WantFullScreen = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+#else
+	(void) v;
+#endif
+}
+
+bool MNVM_GetRunInBackground(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = RunInBackground ? true : false;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetRunInBackground(bool v)
+{
+	EmuLock_Acquire();
+	RunInBackground = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+}
+
+/*
+	Reported the way a person would expect it: on means the emulator
+	is allowed to slow down when the guest is idle. The emulator
+	stores the inverse.
+*/
+bool MNVM_GetAutoSlow(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = WantNotAutoSlow ? false : true;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetAutoSlow(bool v)
+{
+	EmuLock_Acquire();
+	WantNotAutoSlow = v ? falseblnr : trueblnr;
+	EmuLock_Release();
+}
+
+void MNVM_PostReset(void)
+{
+	EmuLock_Acquire();
+	WantMacReset = trueblnr;
+	EmuLock_Release();
+}
+
+void MNVM_PostInterrupt(void)
+{
+	EmuLock_Acquire();
+	WantMacInterrupt = trueblnr;
+	EmuLock_Release();
+}
+
+void MNVM_PostInsertDisk(void)
+{
+	EmuLock_Acquire();
+#if NeedRequestInsertDisk
+	RequestInsertDisk = trueblnr;
+#endif
+	EmuLock_Release();
+}
+
+void MNVM_PostQuit(void)
+{
+	EmuLock_Acquire();
+	RequestMacOff = trueblnr;
+	EmuLock_Release();
+}
+
+int MNVM_GetDriveCount(void)
+{
+	return (int) NumDrives;
+}
+
+bool MNVM_GetDriveInserted(int driveNo)
+{
+	bool v = false;
+
+	if ((driveNo >= 0) && (driveNo < (int) NumDrives)) {
+		EmuLock_Acquire();
+		v = vSonyIsInserted((tDrive) driveNo) ? true : false;
+		EmuLock_Release();
+	}
+
+	return v;
+}
+
+bool MNVM_GetAnyDriveInserted(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = AnyDiskInserted() ? true : false;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostEjectDrive(int driveNo)
+{
+	if ((driveNo >= 0) && (driveNo < (int) NumDrives)) {
+		EmuLock_Acquire();
+		(void) vSonyEject((tDrive) driveNo);
+		EmuLock_Release();
+	}
 }
 
 /*
@@ -156,7 +379,7 @@ GLOBALPROC MNVM_PostSetSpeedValue(int v)
 	checks rather than introducing a second mechanism. Called by
 	EMUTHRED while holding the emulator lock.
 */
-GLOBALFUNC bool EmuThread_RequestStop(void)
+bool EmuThread_RequestStop(void)
 {
 	ForceMacOff = trueblnr;
 
@@ -2522,127 +2745,16 @@ LOCALPROC MySound_SecondNotify(void)
 
 #endif
 
-LOCALPROC FinishSubMenu(NSMenu *theMenu, NSMenu *parentMenu,
-	NSString *sTitle)
-{
-	NSMenuItem *menuItem = [[NSMenuItem alloc]
-		initWithTitle: sTitle
-		action: nil
-		keyEquivalent: @""];
-
-	[menuItem setSubmenu: theMenu];
-	[parentMenu addItem: menuItem];
-	[menuItem release];
-}
-
-LOCALPROC setApplicationMenu(NSMenu *mainMenu)
-{
-	NSMenuItem *menuItem;
-	NSString *sAppName = NSStringCreateFromSubstCStr("^p");
-		/* doesn't matter though, OS X replaces this */
-	NSString *sAbout =
-		NSStringCreateFromSubstCStr(kStrMenuItemAbout);
-	NSString *sHide =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemHide);
-	NSString *sHideOthers =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemHideOthers);
-	NSString *sShowAll =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemShowAll);
-	NSString *sQuit =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemQuit);
-
-	NSMenu *appleMenu = [[NSMenu alloc] initWithTitle: sAppName];
-
-	/* Add menu items */
-	menuItem = [appleMenu addItemWithTitle: sAbout
-		action: @selector(performApplicationAbout:)
-		keyEquivalent: @"a"];
-	[menuItem
-		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
-
-	[appleMenu addItem:[NSMenuItem separatorItem]];
-
-	[appleMenu addItemWithTitle: sHide
-		action: @selector(hide:) keyEquivalent: @""];
-
-	[appleMenu
-		addItemWithTitle: sHideOthers
-		action: @selector(hideOtherApplications:)
-		keyEquivalent: @""];
-
-	[appleMenu addItemWithTitle: sShowAll
-		action: @selector(unhideAllApplications:)
-		keyEquivalent: @""];
-
-	[appleMenu addItem: [NSMenuItem separatorItem]];
-
-	menuItem = [appleMenu addItemWithTitle: sQuit
-		action: @selector(terminate:) keyEquivalent: @"q"];
-	[menuItem
-		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
-
-	FinishSubMenu(appleMenu, mainMenu, sAppName);
-
-	[appleMenu release];
-}
-
-/* Create File menu */
-LOCALPROC setupFileMenu(NSMenu *mainMenu)
-{
-	NSMenu *fileMenu;
-	NSMenuItem *menuItem;
-	NSString *sFile =
-		NSStringCreateFromSubstCStr(kStrMenuFile);
-	NSString *sOpen =
-		NSStringCreateFromSubstCStr(kStrMenuItemOpen ";ll");
-
-	fileMenu = [[NSMenu alloc] initWithTitle: sFile];
-
-	menuItem = [fileMenu
-		addItemWithTitle: sOpen
-		action: @selector(performFileOpen:)
-		keyEquivalent: @"o"];
-	[menuItem
-		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
-
-	FinishSubMenu(fileMenu, mainMenu, sFile);
-
-	[fileMenu release];
-}
-
-/* Create Special menu */
-LOCALPROC setupSpecialMenu(NSMenu *mainMenu)
-{
-	NSMenu *specialMenu;
-	NSString *sSpecial =
-		NSStringCreateFromSubstCStr(kStrMenuSpecial);
-	NSString *sMore =
-		NSStringCreateFromSubstCStr(kStrMenuItemMore ";ll");
-
-	specialMenu = [[NSMenu alloc] initWithTitle: sSpecial];
-
-	[specialMenu
-		addItemWithTitle: sMore
-		action: @selector(performSpecialMoreCommands:)
-		keyEquivalent: @""];
-
-	FinishSubMenu(specialMenu, mainMenu, sSpecial);
-
-	[specialMenu release];
-}
-
+/*
+	The menu bar is built in Swift, in APPMENUS.swift. What used to
+	be here was a three item stub — application, File with one Open
+	item, and Special whose only entry dropped into the character
+	cell overlay — because almost every command lived in that overlay
+	rather than in the menu bar.
+*/
 LOCALPROC MyMenuSetup(void)
 {
-	NSMenu *mainMenu = [[NSMenu alloc] init];
-
-	setApplicationMenu(mainMenu);
-
-	setupFileMenu(mainMenu);
-	setupSpecialMenu(mainMenu);
-
-	[NSApp setMainMenu: mainMenu];
-
-	[mainMenu release];
+	[MNVMMenuController installMainMenu];
 }
 
 
@@ -4402,9 +4514,6 @@ LOCALFUNC blnr InitCocoaStuff(void)
 		*/
 
 	MyMenuSetup();
-
-	/* boundary probe, removed once the Swift chrome lands */
-	NSLog(@"%@", [MNVMEmulatorBridge describeBoundary]);
 
 	MyApplicationDelegate = [[MyClassApplicationDelegate alloc] init];
 	[MyNSApp setDelegate: MyApplicationDelegate];
