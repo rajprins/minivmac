@@ -28,7 +28,7 @@
 #define kShortDescription "miniature Macintosh emulator"
 
 #define kMaintainerName "Paul C. Pratt"
-#define kStrHomePage "https://github.com/rajprins/minivmac"
+#define kStrHomePage "https://github.com/rajprins/moof"
 
 #define Have_SPBLDOPT 1
 #define Have_SPCNFGGL 1
