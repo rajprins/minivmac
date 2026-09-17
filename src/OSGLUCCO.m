@@ -2826,20 +2826,77 @@ LOCALPROC DisconnectKeyCodes3(void)
 
 /* --- basic dialogs --- */
 
+/*
+	Presents a pending MacMsg natively.
+
+	MacMsg itself is unchanged: it parks the strings in
+	SavedBriefMsg and SavedLongMsg and sets SavedFatalMsg, so none of
+	its callers across the emulator need to know anything about how
+	the message is shown. Only the presentation moves here, from
+	NSRunAlertPanel, deprecated since macOS 10.10, to NSAlert.
+
+	This must run on the main thread, which it now does: the display
+	link handler drives CheckForSavedTasks, and UnInitOSGLU runs on
+	the main thread too.
+
+	runModal spins a nested run loop, so the display link keeps
+	firing and re-enters CheckForSavedTasks while the alert is up.
+	The guard below stops that turning into a stack of alerts. The
+	emulator thread meanwhile blocks on the emulator lock, which the
+	frame driver is holding, so emulation pauses while the message is
+	on screen. That is the wanted behaviour, and it is what the drawn
+	overlay effectively did too.
+*/
+
+LOCALVAR blnr PresentingMacMsg = falseblnr;
+
 LOCALPROC CheckSavedMacMsg(void)
 {
-	if (nullpr != SavedBriefMsg) {
+	if ((nullpr != SavedBriefMsg) && ! PresentingMacMsg) {
+		blnr fatal = SavedFatalMsg;
 		NSString *briefMsg0 =
 			NSStringCreateFromSubstCStr(SavedBriefMsg);
 		NSString *longMsg0 =
 			NSStringCreateFromSubstCStr(SavedLongMsg);
-		NSString *quitMsg0 =
-			NSStringCreateFromSubstCStr(kStrCmdQuit);
 
-		(void) NSRunAlertPanel(briefMsg0, @"%@", quitMsg0, nil, nil,
-			longMsg0);
+		PresentingMacMsg = trueblnr;
+
+		{
+			NSAlert *alert = [[NSAlert alloc] init];
+
+			[alert setAlertStyle: fatal
+				? NSAlertStyleCritical
+				: NSAlertStyleWarning];
+			[alert setMessageText: briefMsg0];
+			[alert setInformativeText: longMsg0];
+
+			if (fatal) {
+				/*
+					Nothing can be done but leave, so the only
+					button says so, using the emulator's own
+					localised string for it.
+				*/
+				[alert addButtonWithTitle:
+					NSStringCreateFromSubstCStr(kStrCmdQuit)];
+			}
+			/*
+				For a non fatal message no button is added, so
+				NSAlert supplies its own default, which AppKit
+				localises. The emulator's string table has no
+				"continue" of its own to use here.
+			*/
+
+			(void) [alert runModal];
+
+			[alert release];
+		}
 
 		SavedBriefMsg = nullpr;
+		PresentingMacMsg = falseblnr;
+
+		if (fatal) {
+			ForceMacOff = trueblnr;
+		}
 	}
 }
 
@@ -3935,9 +3992,15 @@ LOCALPROC CheckForSavedTasks(void)
 		}
 	}
 
-	if ((nullpr != SavedBriefMsg) & ! MacMsgDisplayed) {
-		MacMsgDisplayOn();
-	}
+	/*
+		Messages are presented as a native alert rather than by
+		entering the overlay's message special mode. This is what
+		lets the drawn overlay go: SpclModeMessage and SpclModeNoRom
+		are the two non overlay users of the special mode
+		framebuffer indirection in GetCurDrawBuff, and this removes
+		the first of them.
+	*/
+	CheckSavedMacMsg();
 
 #if EnableRecreateW
 	if (0
