@@ -118,8 +118,11 @@ LOCALFUNC char * GetSrcFileFileXtns(void)
 {
 	char *s;
 	blnr UseObjc = ((DoSrcFile_gd()->Flgm & kCSrcFlgmOjbc) != 0);
+	blnr UseSwift = ((DoSrcFile_gd()->Flgm & kCSrcFlgmSwift) != 0);
 
-	if (UseObjc) {
+	if (UseSwift) {
+		s = ".swift";
+	} else if (UseObjc) {
 		s = ".m";
 	} else {
 		s = ".c";
@@ -282,6 +285,10 @@ static void DoAllFrameWorks(tWriteOneFrameWorkType p)
 	p("AudioUnit");
 #if UseOpenGLinOSX
 	p("OpenGL");
+#endif
+#if UseMetalinOSX
+	p("Metal");
+	p("QuartzCore");
 #endif
 }
 

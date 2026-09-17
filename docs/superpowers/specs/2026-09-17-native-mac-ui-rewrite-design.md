@@ -1,0 +1,418 @@
+# Native macOS UI Rewrite — Design
+
+Date: 2026-09-17
+Status: Approved for planning
+
+## Summary
+
+Replace the Cocoa backend of Mini vMac with a modern, fully native macOS
+host layer: AppKit + SwiftUI chrome, Metal rendering, and the emulator
+core running on its own thread under a normal AppKit run loop.
+
+The emulator core is not modified. All work is confined to the host
+backend (`src/OSGLUCCO.m` and the headers it includes) and to the build
+generator in `setup/` that must learn to emit Swift.
+
+## Finding: there is no third-party UI kit to replace
+
+The original request asked to identify non-Apple UI toolkits that could
+be replaced with SwiftUI. There are none. The application links exactly
+three frameworks (`minivmac.xcodeproj/project.pbxproj:29-31`): AppKit,
+AudioUnit, and OpenGL. The SDL backends carried by upstream Mini vMac
+were already removed during the Apple Silicon reduction, as recorded in
+`setup/GNBLDOPT.i:796`: "Only the Cocoa backend ("cco",
+src/OSGLUCCO.m) remains."
+
+Searches for "SDL" in `src/` return only false positives, recorded here
+so the question is not reopened later:
+
+| Location | Meaning |
+|---|---|
+| `src/OSGLUCCO.m:4,23` | Attribution comment; the window and event code was derived from SDL's Cocoa port in 2012 and vendored. No dependency. |
+| `src/SCCEMDEV.c` (9 matches) | SDLC — Synchronous Data Link Control, the Zilog 8530 serial protocol. Emulated hardware. |
+| `src/LTOVRBPF.h` (8 matches) | `sdl_nlen`, `sdl_data` — BSD `struct sockaddr_dl` fields. |
+
+The work is therefore not a toolkit migration. It is a modernisation of
+an existing all-Apple backend that uses obsolete APIs and renders its
+own settings UI into the emulated framebuffer.
+
+## What is actually not native today
+
+1. **Settings are drawn into the guest framebuffer.** `src/CONTROLM.h`
+   renders a character-cell overlay and reads single-letter commands
+   (`CONTROLM.h:914-953`). The real menu bar has three items; Special →
+   "More Commands…" merely enters that overlay (`OSGLUCCO.m:2565-2583`).
+2. **Fixed-function OpenGL 1.1.** `glRasterPos2i` + `glPixelZoom` +
+   `glDrawPixels` (`OSGLUCCO.m:1666-1681`, `2816`). `glDrawPixels` does
+   not exist in an OpenGL core profile.
+3. **The emulator replaces AppKit's run loop.** `[NSApp run]` is halted
+   immediately by `applicationDidFinishLaunching` (`OSGLUCCO.m:4280`),
+   after which `PROGMAIN.c:549` drives `WaitForNextTick()`
+   (`OSGLUCCO.m:4067`), which hand-pumps events and `nanosleep`s to pace
+   60.14 Hz.
+4. **Deprecated APIs.** `NSRunAlertPanel` (2690), `NSOKButton` (2739),
+   `convertBaseToScreen:`/`convertScreenToBase:` (1112, 1129,
+   4013-4015). Manual retain/release throughout; no ARC.
+5. **Hand-rolled fullscreen.** `setPresentationOptions:` with
+   `HideDock | HideMenuBar` (`OSGLUCCO.m:2695`) rather than
+   `NSWindowStyleMaskFullScreen`. No green button, no Spaces, and no
+   auto-revealing menu bar.
+
+## Decisions
+
+| # | Decision | Choice |
+|---|---|---|
+| 1 | Scope | Full backend rewrite: native chrome, Metal, file split |
+| 2 | Language | Swift + SwiftUI for chrome; Obj-C for window, Metal, events, C interop |
+| 3 | Settings scope | Runtime-adjustable state only; emulator configuration model untouched |
+| 4 | Keyboard | Guest keeps every ⌘; host menus use ⌃; native fullscreen makes the menu bar reachable |
+| 5 | Control overlay | Drawing and ⌃-mode state machine deleted; keyboard and ROM logic salvaged |
+| 6 | Sequencing | Big-bang rewrite, swapped in one commit |
+| 7 | Run loop | Emulator moves to a background thread; AppKit owns the main thread |
+
+Decision 7 was a mid-design discovery, not an initial requirement.
+SwiftUI's state invalidation and rendering depend on run-loop observers
+and CoreAnimation transaction commits; under the current hand-pumped
+loop (`untilDate: distantPast` followed by `nanosleep`) they are
+starved. SwiftUI is not viable without it.
+
+Decision 6 was chosen against the recommendation in this design process.
+The known cost is that render-timing and threading defects surface only
+when the whole thing runs. Section "Verification" places an explicit
+early checkpoint to offset this.
+
+## §1 Threading model and the core boundary
+
+**Main thread** runs an ordinary AppKit run loop — `[NSApp run]` is
+called and stays running. SwiftUI and Metal live here.
+
+**Emulator thread**: one dedicated thread at `.userInteractive` QoS runs
+`ProgramMain()` unchanged.
+
+`PROGMAIN.c`, `MINEM68K.c`, `GLOBGLUE.c` and every `*EMDEV.c` are not
+modified. The core continues to believe it owns its thread, because on
+its own thread it does. Every global the core touches is reached from
+exactly one thread.
+
+`WaitForNextTick` keeps only its pacing role. The `nanosleep` and
+`ExtraTimeNotOver` logic survive; the `nextEventMatchingMask:` drain and
+`ProcessOneSystemEvent` move to the main thread as ordinary responder
+methods.
+
+### Cross-thread channels
+
+All risk concentrates here.
+
+| Channel | Direction | Mechanism |
+|---|---|---|
+| Input: keys, mouse, modifiers | main → emu | Lock-free SPSC ring buffer, drained once per tick |
+| Commands: reset, interrupt, insert disk, set speed, quit | main → emu | Same ring, tagged variants |
+| Framebuffer | emu → main | Triple buffer; completed frame index published atomically |
+| Status: speed, inserted disks, running state | emu → main | Atomics, read by the display callback |
+
+Commands share the input ring deliberately: "insert disk" and the
+keystrokes around it must not reorder.
+
+### File layout
+
+`src/OSGLUCCO.m` (4,492 lines) is replaced by the following. All names
+are 8 uppercase characters, matching the project's existing convention
+(`SPFILDEF.i` registers files by bare name; extensions come from flags).
+
+| File | Contents |
+|---|---|
+| `EMUTHRED.m` | Emulator thread host, pacing, queue drain |
+| `XTHRDQUE.h` | Ring buffer and triple buffer primitives |
+| `MTLRENDR.m` | Metal renderer, `CAMetalLayer`, frame upload |
+| `EVNTINPT.m` | AppKit responder methods → input queue |
+| `HOSTFILE.m` | Drives, ROM loading, `NSOpenPanel` |
+| `SNDCOREA.m` | CoreAudio, lifted near-verbatim |
+| `KEYRMPMC.h` | `Keyboard_RemapMac`, `Keyboard_UpdateKeyMap2`, `DisconnectKeyCodes2` |
+| `ROMVALID.h` | `ROM_IsValid`, `Calc_Checksum`, `WaitForRom`, ROM warning messages |
+| `CCOBRIDG.h` | Obj-C ↔ Swift bridging header |
+| `EMUBRIDG.swift` | Observable emulator state, the sole C boundary for Swift |
+| `SETTINGS.swift` | Settings window content |
+| `ABOUTPNL.swift` | About panel |
+| `APPMENUS.swift` | Menu bar construction |
+
+`CONTROLM.h` is deleted. Its cell drawing and ⌃-mode state machine go
+away; `KEYRMPMC.h` and `ROMVALID.h` receive the logic that must survive.
+`GetCurDrawBuff` collapses to returning `screencomparebuff` directly,
+since there is no longer an overlay buffer to choose between.
+
+## §2 Rendering
+
+**Stage 2 is kept; stage 3 is replaced.** The existing pipeline is:
+
+1. Emulator writes the guest framebuffer (1-bit mono or N-bit indexed)
+2. `SCRNMAPR.h` — included twice with differing macros
+   (`OSGLUCCO.m:1530, 1542`), a C template idiom — converts the dirty
+   rect into `ScalingBuff` at 8bpp luminance or 32bpp RGBA via
+   `CLUT_final`
+3. `glDrawPixels` blits, nearest-neighbour scaled by `glPixelZoom`
+
+The CPU mapper (stage 2) is untouched. Metal replaces presentation only.
+
+Moving the CLUT conversion into a fragment shader — sampling the raw
+guest buffer as `r8Uint` against a 256×1 palette texture, deleting
+`ScalingBuff` — is attractive and is recorded as follow-up work. It is
+excluded from this rewrite because it would mean reimplementing five
+tested depth/mode paths inside the same big-bang commit.
+
+**Presentation:**
+
+- A plain `NSView` backed by `CAMetalLayer`, not `MTKView`. `MTKView`
+  imposes its own delegate-driven draw loop; a bare layer with explicit
+  `nextDrawable` avoids a second cadence to reconcile.
+- `CADisplayLink` on the view drives presentation on the main thread —
+  the supported replacement for the deprecated `CVDisplayLink`. It draws
+  whichever frame the emulator last published.
+- Scaling becomes an `MTLSamplerState` with `.nearest` filtering on a
+  fullscreen quad. Magnify becomes a vertex/viewport change, retiring
+  the `MyWindowScale` arithmetic threaded through the draw path.
+
+**Whole-frame upload, not dirty rects.** The converted buffer at
+800×600×4 is 1.92 MB; 60 Hz is ~115 MB/s on unified memory. Tracking
+dirty rects across triple-buffer slots requires unioning regions
+whenever the renderer skips a produced frame — a reliable source of
+intermittent, unreproducible corruption. Dirty rects continue to limit
+stage-2 CPU conversion, where they pay for themselves. The GPU upload is
+unconditional and whole-frame.
+
+**Shader compiled from a source string.** The vertex/fragment pair is
+roughly 20 lines of MSL. A `.metal` file would require teaching
+`WRXCDFLS.i` a `sourcecode.metal` file type and adding a Metal compile
+build phase to the generated project. `newLibraryWithSource:options:error:`
+costs a few milliseconds once at startup and avoids a second generator
+change on top of Swift support.
+
+## §3 Native chrome
+
+### Menu bar (`APPMENUS.swift`)
+
+⌃ equivalents throughout, per decision 4.
+
+- **App** — About, Settings… ⌃, , Hide / Hide Others / Show All, Quit ⌃Q
+- **File** — Open Disk Image… ⌃O, Eject ▸ (one dynamic item per inserted disk)
+- **Machine** — Reset ⌃R, Interrupt ⌃I, Speed ▸ (1×/2×/4×/8×/16×/32×/All Out/Stopped as radio items), Run in Background, Auto-Slow
+- **View** — Magnify ⌃M, Enter Full Screen
+- **Window**, **Help**
+
+### Fullscreen
+
+`My_HideMenuBar` and `My_ShowMenuBar` are deleted in favour of
+`NSWindowStyleMaskFullScreen` and `toggleFullScreen:`. This yields the
+green button, Spaces integration, and a menu bar that auto-reveals on
+hover. The last point is load-bearing: it is what makes deleting the
+overlay safe, because no command becomes unreachable in fullscreen.
+
+### Settings window
+
+SwiftUI's `Settings` scene requires the SwiftUI `App` lifecycle, which
+this application does not use — AppKit owns the app. The Settings window
+is therefore an `NSWindowController` hosting
+`NSHostingView(rootView: SettingsView())`.
+
+Panes: Speed, Display, Input, Disks. Scoped to runtime-adjustable state
+only; nothing that implies baked-in configuration (model, RAM,
+resolution, colour depth) can be changed.
+
+### State bridge
+
+`EMUBRIDG.swift` is the only place Swift meets C. An `@Observable` class
+holds published emulator status, refreshed on the main thread from the
+status atomics; its setters enqueue commands onto the ring. SwiftUI binds
+to it, and it alone talks to `CCOBRIDG.h`. This chokepoint keeps C types
+out of the view layer.
+
+### Alerts
+
+`MacMsg` (`COMOSGLU.h:1231`) already defers: it parks text in
+`SavedBriefMsg`/`SavedLongMsg` and sets a flag, drained by
+`CheckSavedMacMsg` (`OSGLUCCO.m:2676`). That indirection is kept, so no
+caller changes. Presentation moves into the main-thread display callback
+because `runModal` may no longer be called from the emulator thread. The
+`fatal` flag drives whether the app terminates after dismissal.
+`NSRunAlertPanel` becomes `NSAlert`.
+
+### Deprecation sweep
+
+Folded in, since these files are being rewritten regardless. The
+build emits 38 warnings, all pre-existing; the deprecations among
+them are:
+
+| Site | Deprecated | Replacement |
+|---|---|---|
+| 2686 | `NSRunAlertPanel` (10.10) | `NSAlert` |
+| 2742 | `NSOKButton` (10.10) | `NSModalResponseOK` |
+| 1160, 1176 | `convertBaseToScreen:` / `convertScreenToBase:` (10.7) | `convertPointToScreen:` / `convertPointFromScreen:` |
+| 2618 | `canDraw` (10.14) | not needed once presentation is display-link driven |
+| 2947, 2950, 2958 | `NSFilenamesPboardType`, `NSURLPboardType` (10.14) | `NSPasteboardTypeFileURL` |
+
+Manual retain/release becomes ARC. Note that ARC cannot be enabled
+piecemeal in a useful way here: `OSGLUCCO.m` holds 28 explicit
+`release` calls plus manual `NSAutoreleasePool` use, which ARC
+rejects outright. ARC adoption therefore lands together with the
+split of that file, not before it. Until then new files are written
+MRR correct, as `MTLRENDR.m` is.
+
+### Localization is not touched
+
+`INTLCHAR.h` implements a custom substitution format across 11 languages
+(for example `kStrNewCntrlKey "Emulated ;]^m;} key ^k."`, where `;]` and
+`^m` are its own escape syntax). Converting this to `.strings` catalogs
+would risk 11 translations for no user-visible gain.
+`NSStringCreateFromSubstCStr` is exposed through the bridging header and
+SwiftUI views receive already-localized `String` values.
+
+## §4 Build generator changes
+
+The Xcode project is a generated artifact. `build.sh:8-14` deletes
+`./minivmac*`, `./cfg` and `./build` on every run, so hand-edits to
+`minivmac.xcodeproj` are discarded. Xcode is the only supported output
+(`setup/GNBLDOPT.i:705-709`); no Makefile is emitted, and the
+`rm -rf ./Makefile` at `build.sh:10` is vestigial from upstream, which
+supports Makefile output for other platforms. There is therefore only
+one build path to keep in sync.
+
+Required changes, all enumerable:
+
+1. **`setup/DFFILDEF.i:40-60`** — add `kCSrcFlagSwift 7` and
+   `kCSrcFlgmSwift (1 << kCSrcFlagSwift)`, alongside the existing
+   `kCSrcFlagOjbc 6`.
+2. **`setup/WRXCDFLS.i:391-402`** — `WriteSrcFileAPBXCDtype` learns to
+   emit `sourcecode.swift` in addition to `sourcecode.c.objc` and
+   `sourcecode.c.c`.
+3. **`setup/WRXCDFLS.i` build settings** (near lines 995-1060) — emit
+   `SWIFT_VERSION`, `SWIFT_OBJC_BRIDGING_HEADER`,
+   `SWIFT_OBJC_INTERFACE_HEADER_NAME`, `CLANG_ENABLE_MODULES = YES`, and
+   `SWIFT_OPTIMIZATION_LEVEL`.
+4. **`setup/SPFILDEF.i:176`** — replace the single `OSGLUCCO` entry with
+   entries for the new file set. Swift files take
+   `kCSrcFlgmSwift | kCSrcFlgmNoHeader`.
+5. **`setup/SPOTHRCF.i:71`** — `#define WantOSGLUCCO 1` is replaced by
+   per-file guards matching the new layout.
+6. **`setup/USFILDEF.i:281-284`** — drop `OpenGL`, add `Metal`,
+   `QuartzCore`, and `SwiftUI`. Retire the `UseOpenGLinOSX` switch
+   (`GNBLDOPT.i:26-27`, `SPBASDEF.i:37`).
+7. **`setup/WRCNFGAP.i:63-67`** — replace `#include <OpenGL/gl.h>` with
+   the Metal and QuartzCore umbrella headers.
+
+## Verification
+
+The emulator core is untouched, so correctness rests on the host layer
+and the thread boundary.
+
+**Early checkpoint, before the rest of the rewrite is written.** Because
+the big-bang approach defers integration risk to the end, the two
+questions that could invalidate the design are answered first.
+
+**Checkpoint 1 — Swift in a generated project. Resolved, passed.**
+`EMUBRIDG.swift` compiles and links in a project emitted by the
+generator. Objective-C reaches Swift through the generated
+`minivmac-Swift.h`, and Swift reaches C through `CCOBRIDG.h`. Verified
+at runtime: the bridge reported `speed exponent 4`, which is the value
+`build.sh` passes as `-speed 4`, so a real emulator global crossed both
+directions rather than a stub.
+
+Note for anyone repeating this: the build runs `strip -D -u -r`, so
+`nm` shows nothing. Objective-C class metadata survives stripping, so
+`strings` or `otool -o` are the checks that work.
+
+**Checkpoint 2 — rendering. Resolved, passed (threading half still
+open).** The Metal path replaces fixed-function OpenGL and is verified
+by running:
+
+- Monochrome path: Mac II boot screen with the blinking insert-disk
+  floppy, dither rendered pixel exact.
+- Colour path: System 6.0.8 booted, guest Colour menu present, and the
+  rainbow Apple logo renders with correct hues. That logo is the
+  deliberate test for the `0xRRGGBB00` byte order; a wrong swizzle
+  renders it blue dominant.
+- `otool -L` confirms `OpenGL.framework` is gone and `Metal.framework`
+  plus `QuartzCore.framework` are linked.
+
+The remaining half of this checkpoint — the emulator on a background
+thread publishing frames to a `CADisplayLink` driven layer while
+holding 60.14 Hz without tearing or audio drift — is not yet answered.
+
+**Per-area checks:**
+
+| Area | Check |
+|---|---|
+| Threading | Thread Sanitizer clean across boot, disk insert, reset, speed change, quit |
+| Rendering | Frame timing held at 60.14 Hz; visual diff against the OpenGL build at 1× and magnified, mono and colour |
+| Input | Every key in `Keyboard_RemapMac` round-trips; ⌘ still reaches the guest; modifier state correct after focus loss |
+| Menus | Each item drives the correct command; radio state reflects emulator state after external change |
+| Alerts | `MacMsg` fatal and non-fatal paths; no `runModal` from the emulator thread |
+| Fullscreen | Menu bar reveals on hover; green button and Spaces behave; magnify interaction correct |
+| Generator | `./build.sh` from clean produces a building project; no hand-edits to `.xcodeproj` required |
+| Regression | Boot to desktop from a real ROM and disk image; LocalTalk still functions |
+
+## Implementation status
+
+As of 2026-09-17. Everything listed as done builds clean and has been
+verified by running the app, not only by compiling it.
+
+**Done:**
+
+| Area | Files |
+|---|---|
+| Swift support in the generator | `DFFILDEF.i`, `USFILDEF.i`, `WRXCDFLS.i`, `SPBASDEF.i`, `GNBLDOPT.i`, `SPFILDEF.i` |
+| Swift / Objective-C / C boundary | `EMUCTLAP.h`, `CCOBRIDG.h`, `EMUBRIDG.swift` |
+| Metal renderer replacing OpenGL 1.1 | `MTLRENDR.h`, `MTLRENDR.m` |
+| Framework swap, config includes | `USFILDEF.i`, `WRCNFGAP.i` |
+
+Two bugs were found and fixed during this work, both worth knowing
+about because they are easy to reintroduce:
+
+1. `CloseMainWindow` must **not** tear down the renderer.
+   `ReCreateMainWindow` disposes the old window by restoring old
+   state, calling `CloseMainWindow`, then restoring new state — so at
+   that moment the live renderer already belongs to the *new* view.
+   Tearing down there blanks the screen after a magnify or fullscreen
+   toggle. Teardown is explicit instead, and the recreation failure
+   path re-attaches with `MyGetRenderer()`.
+2. For a layer-hosting view the layer must be assigned **before**
+   `wantsLayer = YES`, or AppKit treats the view as layer-backed and
+   contends for layer ownership.
+
+**Not done** — the larger remaining half, now de-risked but not
+written:
+
+| Area | Files |
+|---|---|
+| Emulator on a background thread | `EMUTHRED.m`, `XTHRDQUE.h` |
+| Events to main-thread responders | `EVNTINPT.m` |
+| `CADisplayLink` driven presentation | `MTLRENDR.m` |
+| Native menu bar | `APPMENUS.swift` |
+| SwiftUI Settings and About | `SETTINGS.swift`, `ABOUTPNL.swift` |
+| `CONTROLM.h` split, overlay deleted | `KEYRMPMC.h`, `ROMVALID.h` |
+| Native fullscreen | `OSGLUCCO.m` |
+| `NSAlert`, deprecation sweep, ARC | all |
+| Backend split | `HOSTFILE.m`, `SNDCOREA.m` |
+
+A copy of `extras/roms/MacII.ROM` sits at the repository root so the
+app can be launched for testing. It is ignored by `.gitignore`
+(`/*.ROM`).
+
+## Out of scope
+
+- Changing the emulator configuration model (model, RAM, resolution,
+  depth remain compile-time via `setuptool`)
+- Rewriting localization to `.strings` catalogs
+- GPU-side CLUT conversion (recorded as follow-up)
+- Any modification to the portable emulator core
+- Non-macOS platforms; this fork is Apple Silicon macOS only
+
+## Known risks
+
+1. **Cross-thread input correctness** is the largest. The ring buffer
+   and the modifier-state handoff are where defects will concentrate.
+2. **Big-bang integration.** Mitigated, not eliminated, by the early
+   checkpoint above.
+3. **Generator regressions** affect all future builds, not just this
+   one. `build.sh` from clean is the gate.
+4. **Audio drift** if the emulator thread is descheduled; CoreAudio
+   continues on its own render thread and the existing
+   `MySound_SecondNotify` pacing assumes the old cadence.

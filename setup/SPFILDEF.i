@@ -178,6 +178,20 @@ static void DoAllSrcFiles(tDoOneCFile p)
 			/* OSGLUCCO is a .m with no header of its own */
 		DoOSGLUdepends);
 
+	/*
+		The Swift/Objective-C boundary. EMUCTLAP declares the
+		narrow C surface that Swift is allowed to touch, and
+		CCOBRIDG is the bridging header that exposes it. Neither
+		may pull in the unity build headers such as CONTROLM.h,
+		which are implementation included once into OSGLUCCO.m
+		and guard against a second inclusion.
+	*/
+	p("MTLRENDR", kDepDirCSrc, kCSrcFlgmOjbc, nullpr);
+	p("EMUCTLAP", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);
+	p("CCOBRIDG", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);
+	p("EMUBRIDG", kDepDirCSrc,
+		kCSrcFlgmSwift | kCSrcFlgmNoHeader, nullpr);
+
 	p("CNFUIPIC", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);
 	p("CNFUDPIC", kDepDirCnfg, kCSrcFlgmNoSource, nullpr);
 	p("PICOMMON", kDepDirCSrc, kCSrcFlgmNoSource, nullpr);

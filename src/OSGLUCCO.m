@@ -125,6 +125,31 @@ LOCALPROC dbglog_close0(void)
 
 #include "CONTROLM.h"
 
+/* --- swift bridge --- */
+
+/*
+	Implementation of the narrow C surface declared in EMUCTLAP.h.
+	It lives here because SpeedValue and SetSpeedValue are part of
+	this translation unit, reached through the unity build includes
+	above.
+*/
+
+#include "EMUCTLAP.h"
+#import "MTLRENDR.h"
+#import "minivmac-Swift.h"
+
+GLOBALFUNC int MNVM_GetSpeedValue(void)
+{
+	return ((ui3b) -1 == SpeedValue)
+		? kMNVMSpeedAllOut
+		: (int) SpeedValue;
+}
+
+GLOBALPROC MNVM_PostSetSpeedValue(int v)
+{
+	SetSpeedValue((kMNVMSpeedAllOut == v) ? (ui3b) -1 : (ui3b) v);
+}
+
 /* --- text translation --- */
 
 LOCALPROC UniCharStrFromSubstCStr(int *L, unichar *x, char *s)
@@ -1092,10 +1117,16 @@ LOCALFUNC blnr EntropyGather(void)
 LOCALVAR NSWindow *MyWindow = nil;
 LOCALVAR NSView *MyNSview = nil;
 
-LOCALVAR NSOpenGLContext *MyNSOpnGLCntxt = nil;
+LOCALVAR blnr HaveRenderer = falseblnr;
 LOCALVAR short GLhOffset;
 LOCALVAR short GLvOffset;
-	/* OpenGL coordinates of upper left point of drawing area */
+	/*
+		Offsets of the upper left point of the drawing area. These
+		no longer take part in drawing, since the Metal renderer
+		expresses position through texture coordinates, but hOffset
+		and vOffset are still derived from them for full screen
+		positioning and mouse mapping.
+	*/
 
 
 LOCALPROC MyHideCursor(void)
@@ -1608,104 +1639,73 @@ LOCALPROC UpdateLuminanceCopy(si4b top, si4b left,
 	}
 }
 
-LOCALPROC MyDrawWithOpenGL(ui4r top, ui4r left, ui4r bottom, ui4r right)
+/*
+	Converts the changed region into ScalingBuff and presents the
+	frame.
+
+	Where the OpenGL path computed a raster position and blitted just
+	the changed rectangle, the renderer is handed the whole frame plus
+	the rectangle that should be visible, and the sampler does the
+	scaling. Full screen panning and magnification are therefore no
+	longer expressed here at all.
+
+	The whole buffer is uploaded, so every pixel of ScalingBuff has
+	to have been converted at least once before the first partial
+	update. That holds because drawRect performs the first draw with
+	the full screen rectangle.
+*/
+LOCALPROC MyDrawWithMetal(ui4r top, ui4r left, ui4r bottom, ui4r right)
 {
-	if (nil == MyNSOpnGLCntxt) {
-		/* oops */
-	} else {
-		si4b top2;
-		si4b left2;
+	int srcX = 0;
+	int srcY = 0;
+	int srcW = vMacScreenWidth;
+	int srcH = vMacScreenHeight;
 
-#if VarFullScreen
-		if (UseFullScreen)
-#endif
-#if MayFullScreen
-		{
-			if (top < ViewVStart) {
-				top = ViewVStart;
-			}
-			if (left < ViewHStart) {
-				left = ViewHStart;
-			}
-			if (bottom > ViewVStart + ViewVSize) {
-				bottom = ViewVStart + ViewVSize;
-			}
-			if (right > ViewHStart + ViewHSize) {
-				right = ViewHStart + ViewHSize;
-			}
-
-			if ((top >= bottom) || (left >= right)) {
-				goto label_exit;
-			}
-		}
-#endif
-
-		top2 = top;
-		left2 = left;
-
-#if VarFullScreen
-		if (UseFullScreen)
-#endif
-#if MayFullScreen
-		{
-			left2 -= ViewHStart;
-			top2 -= ViewVStart;
-		}
-#endif
-
-#if EnableMagnify
-		if (UseMagnify) {
-			top2 *= MyWindowScale;
-			left2 *= MyWindowScale;
-		}
-#endif
-
-		[MyNSOpnGLCntxt makeCurrentContext];
-
-		UpdateLuminanceCopy(top, left, bottom, right);
-		glRasterPos2i(GLhOffset + left2, GLvOffset - top2);
-#if 0 != vMacScreenDepth
-		if (UseColorMode) {
-			glDrawPixels(right - left,
-				bottom - top,
-				GL_RGBA,
-				GL_UNSIGNED_INT_8_8_8_8,
-				ScalingBuff + (left + top * vMacScreenWidth) * 4
-				);
-		} else
-#endif
-		{
-			glDrawPixels(right - left,
-				bottom - top,
-				GL_LUMINANCE,
-				GL_UNSIGNED_BYTE,
-				ScalingBuff + (left + top * vMacScreenWidth)
-				);
-		}
-
-#if 0 /* a very quick and dirty check of where drawing */
-		glDrawPixels(right - left,
-			1,
-			GL_RED,
-			GL_UNSIGNED_BYTE,
-			ScalingBuff + (left + top * vMacScreenWidth)
-			);
-
-		glDrawPixels(1,
-			bottom - top,
-			GL_RED,
-			GL_UNSIGNED_BYTE,
-			ScalingBuff + (left + top * vMacScreenWidth)
-			);
-#endif
-
-		glFlush();
+	if (! HaveRenderer) {
+		goto label_exit;
 	}
 
+#if VarFullScreen
+	if (UseFullScreen)
+#endif
 #if MayFullScreen
+	{
+		if (top < ViewVStart) {
+			top = ViewVStart;
+		}
+		if (left < ViewHStart) {
+			left = ViewHStart;
+		}
+		if (bottom > ViewVStart + ViewVSize) {
+			bottom = ViewVStart + ViewVSize;
+		}
+		if (right > ViewHStart + ViewHSize) {
+			right = ViewHStart + ViewHSize;
+		}
+
+		if ((top >= bottom) || (left >= right)) {
+			goto label_exit;
+		}
+
+		srcX = ViewHStart;
+		srcY = ViewVStart;
+		srcW = ViewHSize;
+		srcH = ViewVSize;
+	}
+#endif
+
+	UpdateLuminanceCopy(top, left, bottom, right);
+
+	MTLRenderer_Present(ScalingBuff,
+#if 0 != vMacScreenDepth
+		UseColorMode ? true : false,
+#else
+		false,
+#endif
+		srcX, srcY, srcW, srcH);
+
 label_exit:
 	;
-#endif
 }
 
 
@@ -2617,7 +2617,7 @@ LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 #endif
 	if ([MyNSview canDraw])
 	{
-		MyDrawWithOpenGL(top, left, bottom, right);
+		MyDrawWithMetal(top, left, bottom, right);
 #if 0
 		[MyNSview unlockFocus];
 #endif
@@ -2796,114 +2796,66 @@ LOCALPROC UngrabMachine(void)
 }
 #endif
 
-LOCALPROC MyAdjustGLforSize(int h, int v)
+/*
+	Resizes the drawable. The magnification factor does not appear
+	here: an integral magnify simply makes the view larger, and the
+	nearest neighbour sampler then reproduces each guest pixel as an
+	exact block. The backing scale factor is passed through so that
+	the result stays pixel exact on a Retina display, which the
+	OpenGL path gave up on by asking for a non best resolution
+	surface.
+*/
+LOCALPROC MyAdjustRendererForSize(int h, int v)
 {
-	[MyNSOpnGLCntxt makeCurrentContext];
+	double backingScale = 1.0;
 
-	glClearColor (0.0, 0.0, 0.0, 1.0);
-
-#if 1
-	glViewport(0, 0, h, v);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, h, 0, v, -1.0, 1.0);
-	glMatrixMode(GL_MODELVIEW);
-#endif
-
-	glColor3f(0.0, 0.0, 0.0);
-#if EnableMagnify
-	if (UseMagnify) {
-		glPixelZoom(MyWindowScale, - MyWindowScale);
-	} else
-#endif
-	{
-		glPixelZoom(1, -1);
+	if (nil != MyWindow) {
+		backingScale = [MyWindow backingScaleFactor];
 	}
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, vMacScreenWidth);
 
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	[NSOpenGLContext clearCurrentContext];
+	MTLRenderer_Resize(h, v, backingScale);
 
 	ScreenChangedAll();
 }
 
 LOCALVAR blnr WantScreensChangedCheck = falseblnr;
 
-LOCALPROC MyUpdateOpenGLContext(void)
+LOCALPROC MyUpdateRendererGeometry(void)
 {
-	if (nil != MyNSOpnGLCntxt) {
-		[MyNSOpnGLCntxt makeCurrentContext];
-		[MyNSOpnGLCntxt update];
+	if (HaveRenderer && (nil != MyNSview)) {
+		NSRect r = [MyNSview frame];
+
+		MyAdjustRendererForSize(r.size.width, r.size.height);
 	}
 }
 
-LOCALPROC CloseMyOpenGLContext(void)
+LOCALPROC MyCloseRenderer(void)
 {
-	if (nil != MyNSOpnGLCntxt) {
-
-		[NSOpenGLContext clearCurrentContext];
-		/*
-			Only because MyDrawWithOpenGL doesn't
-			bother to do this. No one
-			uses the current context
-			without settting it first.
-		*/
+	if (HaveRenderer) {
+		MTLRenderer_UnInit();
+		HaveRenderer = falseblnr;
 	}
 }
 
-LOCALFUNC blnr GetOpnGLCntxt(void)
+LOCALFUNC blnr MyGetRenderer(void)
 {
 	blnr v = falseblnr;
 
-	if (nil == MyNSOpnGLCntxt) {
+	if (! HaveRenderer) {
 		NSRect NewWinRect = [MyNSview frame];
-		NSOpenGLPixelFormat *fmt;
 
-#if WantGraphicsSwitching
+		if (! MTLRenderer_Init(MyNSview,
+			vMacScreenWidth, vMacScreenHeight))
 		{
-			NSOpenGLPixelFormatAttribute attr0[] = {
-				NSOpenGLPFAAllowOfflineRenderers,
-				0};
-
-			fmt =
-				[[NSOpenGLPixelFormat alloc] initWithAttributes:attr0];
-		}
-		if (nil != fmt) {
-			/* ok */
-		} else
-#endif
-		{
-			NSOpenGLPixelFormatAttribute attr[] = {
-				0};
-
-			fmt = [[NSOpenGLPixelFormat alloc] initWithAttributes:attr];
-			if (nil == fmt) {
 #if dbglog_HAVE
-				dbglog_writeln("Could not create fmt");
-#endif
-				goto label_exit;
-			}
-		}
-
-		MyNSOpnGLCntxt = [[NSOpenGLContext alloc]
-			initWithFormat:fmt shareContext:nil];
-
-		[fmt release];
-
-		if (nil == MyNSOpnGLCntxt) {
-#if dbglog_HAVE
-			dbglog_writeln("Could not create MyNSOpnGLCntxt");
+			dbglog_writeln("Could not init Metal renderer");
 #endif
 			goto label_exit;
 		}
 
-		/* fprintf(stderr, "%s\n", "Got OpenGL context"); */
+		HaveRenderer = trueblnr;
 
-		[MyNSOpnGLCntxt setView: MyNSview];
-		[MyNSOpnGLCntxt update];
-
-		MyAdjustGLforSize(NewWinRect.size.width,
+		MyAdjustRendererForSize(NewWinRect.size.width,
 			NewWinRect.size.height);
 
 #if 0 != vMacScreenDepth
@@ -3073,13 +3025,13 @@ label_exit:
 		And if create after then our content won't
 		be drawn initially, resulting in flicker.
 	*/
-	if (GetOpnGLCntxt()) {
-		MyDrawWithOpenGL(0, 0, vMacScreenHeight, vMacScreenWidth);
+	if (MyGetRenderer()) {
+		MyDrawWithMetal(0, 0, vMacScreenHeight, vMacScreenWidth);
 
 		/*
 			since drawRect is called very rarely, didn't
 			bother above to calculate actual coordinates
-			to pass to MyDrawWithOpenGL.
+			to pass to MyDrawWithMetal.
 
 			if it did matter, could get list of dirty
 			rectangles, instead of dirtyRect that is
@@ -3093,7 +3045,7 @@ label_exit:
 
 			[self getRectsBeingDrawn:&rectList count:&count];
 			for (i = 0; i < count; i++) {
-				MyDrawWithOpenGL(<converted> rectList[i]);
+				MyDrawWithMetal(<converted> rectList[i]);
 			}
 		}
 #endif
@@ -3123,11 +3075,18 @@ LOCALPROC CloseMainWindow(void)
 		MyNSview = nil;
 	}
 
+	/*
+		The renderer is deliberately not torn down here.
+		ReCreateMainWindow disposes of the old window by restoring
+		the old state, calling this, and then restoring the new
+		state, so at this point the live renderer already belongs
+		to the newly created view. Tearing it down here would
+		destroy the new renderer rather than the old one, leaving a
+		blank screen after a magnify or full screen toggle.
 
-	if (nil != MyNSOpnGLCntxt) {
-		[MyNSOpnGLCntxt release];
-		MyNSOpnGLCntxt = nil;
-	}
+		Teardown is therefore explicit: before recreation in
+		ReCreateMainWindow, and at shutdown in UnInitCocoaStuff.
+	*/
 }
 
 LOCALPROC QZ_SetCaption(void)
@@ -3353,8 +3312,6 @@ LOCALFUNC blnr CreateMainWindow(void)
 		instead of NO when the NSHighResolutionCapable boolean
 		is set in Info.plist."
 	*/
-	[MyNSview setWantsBestResolutionOpenGLSurface:NO];
-
 	[MyWindow setContentView: MyNSview];
 
 	[MyWindow makeKeyAndOrderFront: nil];
@@ -3363,9 +3320,9 @@ LOCALFUNC blnr CreateMainWindow(void)
 		just in case drawRect didn't get called
 		during makeKeyAndOrderFront
 	*/
-	if (! GetOpnGLCntxt()) {
+	if (! MyGetRenderer()) {
 #if dbglog_HAVE
-		dbglog_writeln("Could not GetOpnGLCntxt");
+		dbglog_writeln("Could not MyGetRenderer");
 #endif
 		goto label_exit;
 	}
@@ -3384,7 +3341,6 @@ LOCALPROC ZapMyWState(void)
 	MyWindow = nil;
 	MyNSview = nil;
 	MyWinDelegate = nil;
-	MyNSOpnGLCntxt = nil;
 }
 #endif
 
@@ -3410,7 +3366,6 @@ struct MyWState {
 	NSWindow *f_MyWindow;
 	NSView *f_MyNSview;
 	MyClassWindowDelegate *f_MyWinDelegate;
-	NSOpenGLContext *f_MyNSOpnGLCntxt;
 	short f_GLhOffset;
 	short f_GLvOffset;
 };
@@ -3440,7 +3395,6 @@ LOCALPROC GetMyWState(MyWState *r)
 	r->f_MyWindow = MyWindow;
 	r->f_MyNSview = MyNSview;
 	r->f_MyWinDelegate = MyWinDelegate;
-	r->f_MyNSOpnGLCntxt = MyNSOpnGLCntxt;
 	r->f_GLhOffset = GLhOffset;
 	r->f_GLvOffset = GLvOffset;
 }
@@ -3469,7 +3423,6 @@ LOCALPROC SetMyWState(MyWState *r)
 	MyWindow = r->f_MyWindow;
 	MyNSview = r->f_MyNSview;
 	MyWinDelegate = r->f_MyWinDelegate;
-	MyNSOpnGLCntxt = r->f_MyNSOpnGLCntxt;
 	GLhOffset = r->f_GLhOffset;
 	GLvOffset = r->f_GLvOffset;
 }
@@ -3502,7 +3455,7 @@ LOCALPROC ReCreateMainWindow(void)
 	}
 #endif
 
-	CloseMyOpenGLContext();
+	MyCloseRenderer();
 
 	GetMyWState(&old_state);
 
@@ -3518,6 +3471,13 @@ LOCALPROC ReCreateMainWindow(void)
 	if (! CreateMainWindow()) {
 		CloseMainWindow();
 		SetMyWState(&old_state);
+
+		/*
+			The renderer was torn down above in anticipation of a
+			new view. Since the new window could not be made, it
+			has to be re-attached to the restored old view.
+		*/
+		(void) MyGetRenderer();
 
 #if VarFullScreen
 		if (UseFullScreen) {
@@ -3790,7 +3750,7 @@ LOCALPROC CheckForSavedTasks(void)
 	if (WantScreensChangedCheck) {
 		WantScreensChangedCheck = falseblnr;
 
-		MyUpdateOpenGLContext();
+		MyUpdateRendererGeometry();
 
 #if VarFullScreen
 		/*
@@ -4261,6 +4221,9 @@ LOCALFUNC blnr InitCocoaStuff(void)
 
 	MyMenuSetup();
 
+	/* boundary probe, removed once the Swift chrome lands */
+	NSLog(@"%@", [MNVMEmulatorBridge describeBoundary]);
+
 	MyApplicationDelegate = [[MyClassApplicationDelegate alloc] init];
 	[MyNSApp setDelegate: MyApplicationDelegate];
 
@@ -4463,7 +4426,7 @@ LOCALPROC UnInitOSGLU(void)
 
 	CheckSavedMacMsg();
 
-	CloseMyOpenGLContext();
+	MyCloseRenderer();
 	CloseMainWindow();
 
 #if MayFullScreen

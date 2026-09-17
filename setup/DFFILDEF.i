@@ -47,6 +47,7 @@ typedef void (*tWriteOneDocType)(
 #define kCSrcFlagNoSource 4
 #define kCSrcFlagNoHeader 5
 #define kCSrcFlagOjbc 6
+#define kCSrcFlagSwift 7
 
 #define kCSrcFlgmNone 0
 #if 0
@@ -58,6 +59,7 @@ typedef void (*tWriteOneDocType)(
 #define kCSrcFlgmNoSource (1 << kCSrcFlagNoSource)
 #define kCSrcFlgmNoHeader (1 << kCSrcFlagNoHeader)
 #define kCSrcFlgmOjbc (1 << kCSrcFlagOjbc)
+#define kCSrcFlgmSwift (1 << kCSrcFlagSwift)
 
 #define CSrcFlagsUseIf(b) ((b) ? kCSrcFlgmNone : kCSrcFlgmSkip)
 #define CSrcFlagsUseHdrIf(b) (CSrcFlagsUseIf(b) | kCSrcFlgmNoSource)

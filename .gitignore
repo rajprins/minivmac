@@ -6,6 +6,7 @@
 /minivmac
 /minivmac.app
 /minivmac.xcodeproj
+/minivmac.swiftmodule
 /build
 /setuptool
 /makefilegen

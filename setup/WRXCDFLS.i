@@ -392,8 +392,11 @@ LOCALPROC WriteSrcFileAPBXCDtype(void)
 {
 	char *s;
 	blnr UseObjc = ((DoSrcFile_gd()->Flgm & kCSrcFlgmOjbc) != 0);
+	blnr UseSwift = ((DoSrcFile_gd()->Flgm & kCSrcFlgmSwift) != 0);
 
-	if (UseObjc) {
+	if (UseSwift) {
+		s = "sourcecode.swift";
+	} else if (UseObjc) {
 		s = "sourcecode.c.objc";
 	} else {
 		s = "sourcecode.c.c";
@@ -1104,6 +1107,32 @@ LOCALPROC WriteAPBXCDBuildSettings(void)
 			WriteDestFileLn("STRIPFLAGS = \"-u -r\";");
 			WriteDestFileLn("STRIP_INSTALLED_PRODUCT = YES;");
 		}
+	}
+	if (HaveSwiftSrcFiles) {
+		/*
+			Swift interoperates with the Objective-C and C
+			sources through two generated headers. The bridging
+			header is hand written and exposes C to Swift. The
+			interface header is emitted by the compiler and
+			exposes Swift to Objective-C. Both names are pinned
+			here rather than left to default, so that the
+			#import in the Objective-C sources is stable.
+		*/
+		WriteDestFileLn("CLANG_ENABLE_MODULES = YES;");
+		WriteDestFileLn("PRODUCT_MODULE_NAME = minivmac;");
+		WriteBgnDestFileLn();
+		WriteCStrToDestFile("SWIFT_OBJC_BRIDGING_HEADER = \"");
+		WriteCStrToDestFile(src_d_name);
+		WriteCStrToDestFile("/" kSwiftBridgeHeaderName "\";");
+		WriteEndDestFileLn();
+		WriteDestFileLn("SWIFT_OBJC_INTERFACE_HEADER_NAME = "
+			"\"" kSwiftIfaceHeaderName "\";");
+		if (gbk_dbg_on == gbo_dbg) {
+			WriteDestFileLn("SWIFT_OPTIMIZATION_LEVEL = \"-Onone\";");
+		} else {
+			WriteDestFileLn("SWIFT_OPTIMIZATION_LEVEL = \"-O\";");
+		}
+		WriteDestFileLn("SWIFT_VERSION = 5.0;");
 	}
 	if ((ide_vers >= 1500) && (ide_vers < 2100)) {
 		WriteDestFileLn("SYMROOT = \"$(PROJECT_DIR)\";");

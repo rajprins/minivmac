@@ -66,6 +66,10 @@ LOCALPROC WriteCommonCNFUIOSGContents(void)
 #if UseOpenGLinOSX
 	WriteDestFileLn("#include <OpenGL/gl.h>");
 #endif
+#if UseMetalinOSX
+	WriteDestFileLn("#import <Metal/Metal.h>");
+	WriteDestFileLn("#import <QuartzCore/QuartzCore.h>");
+#endif
 	WriteDestFileLn("#include <stdio.h>");
 	WriteDestFileLn("#include <stdlib.h>");
 	WriteDestFileLn("#include <string.h>");
