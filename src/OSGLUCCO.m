@@ -1393,7 +1393,7 @@ LOCALFUNC CGPoint QZ_PrivateSDLToCG(NSPoint *p)
 
 	*p = [MyNSview convertPoint: *p toView: nil];
 	p->y = [MyNSview frame].size.height - p->y;
-	*p = [MyWindow convertBaseToScreen: *p];
+	*p = [MyWindow convertPointToScreen: *p];
 
 	cgp.x = p->x;
 	cgp.y = CGDisplayPixelsHigh(kCGDirectMainDisplay)
@@ -1409,7 +1409,7 @@ LOCALPROC QZ_GetMouseLocation(NSPoint *p)
 
 	*p = [NSEvent mouseLocation]; /* global coordinates */
 	if (nil != MyWindow) {
-		*p = [MyWindow convertScreenToBase: *p];
+		*p = [MyWindow convertPointFromScreen: *p];
 	}
 	*p = [MyNSview convertPoint: *p fromView: nil];
 	p->y = [MyNSview frame].size.height - p->y;
@@ -2949,7 +2949,7 @@ LOCALPROC InsertADisk0(void)
 
 	MyBeginDialog();
 
-	if (NSOKButton == [panel runModal]) {
+	if (NSModalResponseOK == [panel runModal]) {
 		int i;
 		NSArray *a = [panel URLs];
 		int n = [a count];
@@ -3871,7 +3871,7 @@ LOCALFUNC blnr FindOrMakeNamedChildDirPath(NSString *parentPath,
 LOCALPROC MakeNewDisk(ui5b L, NSString *drivename)
 {
 #if SaveDialogEnable
-	NSInteger result = NSCancelButton;
+	NSInteger result = NSModalResponseCancel;
 	NSSavePanel *panel = [NSSavePanel savePanel];
 
 	MyBeginDialog();
@@ -3882,7 +3882,7 @@ LOCALPROC MakeNewDisk(ui5b L, NSString *drivename)
 
 	MyEndDialog();
 
-	if (NSOKButton == result) {
+	if (NSModalResponseOK == result) {
 		NSString* filePath = [[panel URL] path];
 		MakeNewDisk0(L, filePath);
 	}
@@ -4139,9 +4139,9 @@ LOCALPROC ProcessEventLocation(NSEvent *event)
 
 	if (w != MyWindow) {
 		if (nil != w) {
-			p = [w convertBaseToScreen: p];
+			p = [w convertPointToScreen: p];
 		}
-		p = [MyWindow convertScreenToBase: p];
+		p = [MyWindow convertPointFromScreen: p];
 	}
 	p = [MyNSview convertPoint: p fromView: nil];
 	p.y = [MyNSview frame].size.height - p.y;
