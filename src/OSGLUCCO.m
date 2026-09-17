@@ -4207,6 +4207,30 @@ LOCALFUNC blnr ProcessOneSystemEvent(NSEvent *event)
 {
 	blnr consumed;
 
+	/*
+		Menu key equivalents have to be offered before the emulator
+		sees the event, because ProcessOneSystemEvent consumes every
+		key down and NSApplication would otherwise never get the
+		chance to match one.
+
+		Only Control combinations are offered. That is not a
+		shortcut taken for convenience: the emulated Macintosh must
+		receive every Command keystroke, so Command must never be
+		matched against the host menu bar, however tempting it is to
+		just hand the event to performKeyEquivalent: unconditionally.
+
+		If no menu item matches a Control combination, the event
+		still falls through to the guest, so Control chords the host
+		does not claim are not swallowed.
+	*/
+	if (NSEventTypeKeyDown == [event type]) {
+		if (0 != ([event modifierFlags] & NSEventModifierFlagControl)) {
+			if ([[self mainMenu] performKeyEquivalent: event]) {
+				return;
+			}
+		}
+	}
+
 	EmuLock_Acquire();
 	consumed = ProcessOneSystemEvent(event);
 	EmuLock_Release();
