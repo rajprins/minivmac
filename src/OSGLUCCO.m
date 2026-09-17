@@ -125,6 +125,267 @@ LOCALPROC dbglog_close0(void)
 
 #include "CONTROLM.h"
 
+/* --- swift bridge --- */
+
+/*
+	Implementation of the narrow C surface declared in EMUCTLAP.h.
+	It lives here because SpeedValue and SetSpeedValue are part of
+	this translation unit, reached through the unity build includes
+	above.
+*/
+
+#include "EMUCTLAP.h"
+#import "MTLRENDR.h"
+#import "EMUTHRED.h"
+#import "EmuBridge-Swift.h"
+
+/*
+	Implementation of the narrow C surface declared in EMUCTLAP.h.
+
+	These live here because the emulator globals they touch are part
+	of this translation unit, reached through the unity build
+	includes above.
+
+	Each one takes the emulator lock, so the Swift side cannot forget
+	to. The lock is recursive, so being called from a main thread
+	path that already holds it, such as the display link handler, is
+	fine.
+*/
+
+bool MNVM_HasMagnify(void)
+{
+#if EnableMagnify
+	return true;
+#else
+	return false;
+#endif
+}
+
+bool MNVM_HasFullScreen(void)
+{
+#if VarFullScreen
+	return true;
+#else
+	return false;
+#endif
+}
+
+bool MNVM_HasSound(void)
+{
+#if MySoundEnabled
+	return true;
+#else
+	return false;
+#endif
+}
+
+int MNVM_GetSpeedValue(void)
+{
+	int v;
+
+	EmuLock_Acquire();
+	v = ((ui3b) -1 == SpeedValue)
+		? kMNVMSpeedAllOut
+		: (int) SpeedValue;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetSpeedValue(int v)
+{
+	EmuLock_Acquire();
+	SetSpeedValue((kMNVMSpeedAllOut == v) ? (ui3b) -1 : (ui3b) v);
+	EmuLock_Release();
+}
+
+bool MNVM_GetSpeedStopped(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = SpeedStopped ? true : false;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetSpeedStopped(bool v)
+{
+	EmuLock_Acquire();
+	SpeedStopped = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+}
+
+bool MNVM_GetMagnify(void)
+{
+	bool v = false;
+
+#if EnableMagnify
+	EmuLock_Acquire();
+	v = WantMagnify ? true : false;
+	EmuLock_Release();
+#endif
+
+	return v;
+}
+
+void MNVM_PostSetMagnify(bool v)
+{
+#if EnableMagnify
+	EmuLock_Acquire();
+	WantMagnify = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+#else
+	(void) v;
+#endif
+}
+
+bool MNVM_GetFullScreen(void)
+{
+	bool v = false;
+
+#if VarFullScreen
+	EmuLock_Acquire();
+	v = WantFullScreen ? true : false;
+	EmuLock_Release();
+#endif
+
+	return v;
+}
+
+void MNVM_PostSetFullScreen(bool v)
+{
+#if VarFullScreen
+	EmuLock_Acquire();
+	WantFullScreen = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+#else
+	(void) v;
+#endif
+}
+
+bool MNVM_GetRunInBackground(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = RunInBackground ? true : false;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetRunInBackground(bool v)
+{
+	EmuLock_Acquire();
+	RunInBackground = v ? trueblnr : falseblnr;
+	EmuLock_Release();
+}
+
+/*
+	Reported the way a person would expect it: on means the emulator
+	is allowed to slow down when the guest is idle. The emulator
+	stores the inverse.
+*/
+bool MNVM_GetAutoSlow(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = WantNotAutoSlow ? false : true;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostSetAutoSlow(bool v)
+{
+	EmuLock_Acquire();
+	WantNotAutoSlow = v ? falseblnr : trueblnr;
+	EmuLock_Release();
+}
+
+void MNVM_PostReset(void)
+{
+	EmuLock_Acquire();
+	WantMacReset = trueblnr;
+	EmuLock_Release();
+}
+
+void MNVM_PostInterrupt(void)
+{
+	EmuLock_Acquire();
+	WantMacInterrupt = trueblnr;
+	EmuLock_Release();
+}
+
+void MNVM_PostInsertDisk(void)
+{
+	EmuLock_Acquire();
+#if NeedRequestInsertDisk
+	RequestInsertDisk = trueblnr;
+#endif
+	EmuLock_Release();
+}
+
+void MNVM_PostQuit(void)
+{
+	EmuLock_Acquire();
+	RequestMacOff = trueblnr;
+	EmuLock_Release();
+}
+
+int MNVM_GetDriveCount(void)
+{
+	return (int) NumDrives;
+}
+
+bool MNVM_GetDriveInserted(int driveNo)
+{
+	bool v = false;
+
+	if ((driveNo >= 0) && (driveNo < (int) NumDrives)) {
+		EmuLock_Acquire();
+		v = vSonyIsInserted((tDrive) driveNo) ? true : false;
+		EmuLock_Release();
+	}
+
+	return v;
+}
+
+bool MNVM_GetAnyDriveInserted(void)
+{
+	bool v;
+
+	EmuLock_Acquire();
+	v = AnyDiskInserted() ? true : false;
+	EmuLock_Release();
+
+	return v;
+}
+
+void MNVM_PostEjectDrive(int driveNo)
+{
+	if ((driveNo >= 0) && (driveNo < (int) NumDrives)) {
+		EmuLock_Acquire();
+		(void) vSonyEject((tDrive) driveNo);
+		EmuLock_Release();
+	}
+}
+
+/*
+	Asks the emulator loop to leave, using the flag the loop already
+	checks rather than introducing a second mechanism. Called by
+	EMUTHRED while holding the emulator lock.
+*/
+bool EmuThread_RequestStop(void)
+{
+	ForceMacOff = trueblnr;
+
+	return true;
+}
+
 /* --- text translation --- */
 
 LOCALPROC UniCharStrFromSubstCStr(int *L, unichar *x, char *s)
@@ -1092,10 +1353,16 @@ LOCALFUNC blnr EntropyGather(void)
 LOCALVAR NSWindow *MyWindow = nil;
 LOCALVAR NSView *MyNSview = nil;
 
-LOCALVAR NSOpenGLContext *MyNSOpnGLCntxt = nil;
+LOCALVAR blnr HaveRenderer = falseblnr;
 LOCALVAR short GLhOffset;
 LOCALVAR short GLvOffset;
-	/* OpenGL coordinates of upper left point of drawing area */
+	/*
+		Offsets of the upper left point of the drawing area. These
+		no longer take part in drawing, since the Metal renderer
+		expresses position through texture coordinates, but hOffset
+		and vOffset are still derived from them for full screen
+		positioning and mouse mapping.
+	*/
 
 
 LOCALPROC MyHideCursor(void)
@@ -1126,7 +1393,7 @@ LOCALFUNC CGPoint QZ_PrivateSDLToCG(NSPoint *p)
 
 	*p = [MyNSview convertPoint: *p toView: nil];
 	p->y = [MyNSview frame].size.height - p->y;
-	*p = [MyWindow convertBaseToScreen: *p];
+	*p = [MyWindow convertPointToScreen: *p];
 
 	cgp.x = p->x;
 	cgp.y = CGDisplayPixelsHigh(kCGDirectMainDisplay)
@@ -1142,7 +1409,7 @@ LOCALPROC QZ_GetMouseLocation(NSPoint *p)
 
 	*p = [NSEvent mouseLocation]; /* global coordinates */
 	if (nil != MyWindow) {
-		*p = [MyWindow convertScreenToBase: *p];
+		*p = [MyWindow convertPointFromScreen: *p];
 	}
 	*p = [MyNSview convertPoint: *p fromView: nil];
 	p->y = [MyNSview frame].size.height - p->y;
@@ -1504,6 +1771,14 @@ LOCALVAR blnr gTrueBackgroundFlag = falseblnr;
 
 LOCALVAR ui3p ScalingBuff = nullpr;
 
+/* Frame handed from the emulating thread to the main thread. */
+LOCALVAR blnr FrameIsReady = falseblnr;
+LOCALVAR blnr FrameIsColor = falseblnr;
+LOCALVAR int FrameSrcX = 0;
+LOCALVAR int FrameSrcY = 0;
+LOCALVAR int FrameSrcW = 0;
+LOCALVAR int FrameSrcH = 0;
+
 LOCALVAR ui3p CLUT_final;
 
 #define CLUT_finalsz1 (256 * 8)
@@ -1608,104 +1883,99 @@ LOCALPROC UpdateLuminanceCopy(si4b top, si4b left,
 	}
 }
 
-LOCALPROC MyDrawWithOpenGL(ui4r top, ui4r left, ui4r bottom, ui4r right)
+/*
+	Converts the changed region into ScalingBuff and presents the
+	frame.
+
+	Where the OpenGL path computed a raster position and blitted just
+	the changed rectangle, the renderer is handed the whole frame plus
+	the rectangle that should be visible, and the sampler does the
+	scaling. Full screen panning and magnification are therefore no
+	longer expressed here at all.
+
+	The whole buffer is uploaded, so every pixel of ScalingBuff has
+	to have been converted at least once before the first partial
+	update. That holds because drawRect performs the first draw with
+	the full screen rectangle.
+*/
+LOCALPROC MyDrawWithMetal(ui4r top, ui4r left, ui4r bottom, ui4r right)
 {
-	if (nil == MyNSOpnGLCntxt) {
-		/* oops */
-	} else {
-		si4b top2;
-		si4b left2;
+	int srcX = 0;
+	int srcY = 0;
+	int srcW = vMacScreenWidth;
+	int srcH = vMacScreenHeight;
 
-#if VarFullScreen
-		if (UseFullScreen)
-#endif
-#if MayFullScreen
-		{
-			if (top < ViewVStart) {
-				top = ViewVStart;
-			}
-			if (left < ViewHStart) {
-				left = ViewHStart;
-			}
-			if (bottom > ViewVStart + ViewVSize) {
-				bottom = ViewVStart + ViewVSize;
-			}
-			if (right > ViewHStart + ViewHSize) {
-				right = ViewHStart + ViewHSize;
-			}
-
-			if ((top >= bottom) || (left >= right)) {
-				goto label_exit;
-			}
-		}
-#endif
-
-		top2 = top;
-		left2 = left;
-
-#if VarFullScreen
-		if (UseFullScreen)
-#endif
-#if MayFullScreen
-		{
-			left2 -= ViewHStart;
-			top2 -= ViewVStart;
-		}
-#endif
-
-#if EnableMagnify
-		if (UseMagnify) {
-			top2 *= MyWindowScale;
-			left2 *= MyWindowScale;
-		}
-#endif
-
-		[MyNSOpnGLCntxt makeCurrentContext];
-
-		UpdateLuminanceCopy(top, left, bottom, right);
-		glRasterPos2i(GLhOffset + left2, GLvOffset - top2);
-#if 0 != vMacScreenDepth
-		if (UseColorMode) {
-			glDrawPixels(right - left,
-				bottom - top,
-				GL_RGBA,
-				GL_UNSIGNED_INT_8_8_8_8,
-				ScalingBuff + (left + top * vMacScreenWidth) * 4
-				);
-		} else
-#endif
-		{
-			glDrawPixels(right - left,
-				bottom - top,
-				GL_LUMINANCE,
-				GL_UNSIGNED_BYTE,
-				ScalingBuff + (left + top * vMacScreenWidth)
-				);
-		}
-
-#if 0 /* a very quick and dirty check of where drawing */
-		glDrawPixels(right - left,
-			1,
-			GL_RED,
-			GL_UNSIGNED_BYTE,
-			ScalingBuff + (left + top * vMacScreenWidth)
-			);
-
-		glDrawPixels(1,
-			bottom - top,
-			GL_RED,
-			GL_UNSIGNED_BYTE,
-			ScalingBuff + (left + top * vMacScreenWidth)
-			);
-#endif
-
-		glFlush();
+	if (! HaveRenderer) {
+		goto label_exit;
 	}
 
+#if VarFullScreen
+	if (UseFullScreen)
+#endif
 #if MayFullScreen
+	{
+		if (top < ViewVStart) {
+			top = ViewVStart;
+		}
+		if (left < ViewHStart) {
+			left = ViewHStart;
+		}
+		if (bottom > ViewVStart + ViewVSize) {
+			bottom = ViewVStart + ViewVSize;
+		}
+		if (right > ViewHStart + ViewHSize) {
+			right = ViewHStart + ViewHSize;
+		}
+
+		if ((top >= bottom) || (left >= right)) {
+			goto label_exit;
+		}
+
+		srcX = ViewHStart;
+		srcY = ViewVStart;
+		srcW = ViewHSize;
+		srcH = ViewVSize;
+	}
+#endif
+
+	UpdateLuminanceCopy(top, left, bottom, right);
+
+	/*
+		Conversion happens on whichever thread is emulating, but
+		presentation must not: it reads the layer, whose geometry
+		belongs to AppKit. So the converted frame is recorded here
+		and MyPresentPendingFrame draws it from the display link on
+		the main thread. The emulator lock covers ScalingBuff, so
+		the two never overlap.
+	*/
+	FrameSrcX = srcX;
+	FrameSrcY = srcY;
+	FrameSrcW = srcW;
+	FrameSrcH = srcH;
+#if 0 != vMacScreenDepth
+	FrameIsColor = UseColorMode ? trueblnr : falseblnr;
+#else
+	FrameIsColor = falseblnr;
+#endif
+	FrameIsReady = trueblnr;
+
 label_exit:
 	;
-#endif
+}
+
+/*
+	Presents whatever the emulator last converted. Main thread only,
+	with the emulator lock held by the caller.
+*/
+LOCALPROC MyPresentPendingFrame(void)
+{
+	if (FrameIsReady) {
+		FrameIsReady = falseblnr;
+
+		MTLRenderer_Present(ScalingBuff,
+			FrameIsColor ? true : false,
+			FrameSrcX, FrameSrcY, FrameSrcW, FrameSrcH);
+	}
 }
 
 
@@ -2475,127 +2745,16 @@ LOCALPROC MySound_SecondNotify(void)
 
 #endif
 
-LOCALPROC FinishSubMenu(NSMenu *theMenu, NSMenu *parentMenu,
-	NSString *sTitle)
-{
-	NSMenuItem *menuItem = [[NSMenuItem alloc]
-		initWithTitle: sTitle
-		action: nil
-		keyEquivalent: @""];
-
-	[menuItem setSubmenu: theMenu];
-	[parentMenu addItem: menuItem];
-	[menuItem release];
-}
-
-LOCALPROC setApplicationMenu(NSMenu *mainMenu)
-{
-	NSMenuItem *menuItem;
-	NSString *sAppName = NSStringCreateFromSubstCStr("^p");
-		/* doesn't matter though, OS X replaces this */
-	NSString *sAbout =
-		NSStringCreateFromSubstCStr(kStrMenuItemAbout);
-	NSString *sHide =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemHide);
-	NSString *sHideOthers =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemHideOthers);
-	NSString *sShowAll =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemShowAll);
-	NSString *sQuit =
-		NSStringCreateFromSubstCStr(kStrAppMenuItemQuit);
-
-	NSMenu *appleMenu = [[NSMenu alloc] initWithTitle: sAppName];
-
-	/* Add menu items */
-	menuItem = [appleMenu addItemWithTitle: sAbout
-		action: @selector(performApplicationAbout:)
-		keyEquivalent: @"a"];
-	[menuItem
-		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
-
-	[appleMenu addItem:[NSMenuItem separatorItem]];
-
-	[appleMenu addItemWithTitle: sHide
-		action: @selector(hide:) keyEquivalent: @""];
-
-	[appleMenu
-		addItemWithTitle: sHideOthers
-		action: @selector(hideOtherApplications:)
-		keyEquivalent: @""];
-
-	[appleMenu addItemWithTitle: sShowAll
-		action: @selector(unhideAllApplications:)
-		keyEquivalent: @""];
-
-	[appleMenu addItem: [NSMenuItem separatorItem]];
-
-	menuItem = [appleMenu addItemWithTitle: sQuit
-		action: @selector(terminate:) keyEquivalent: @"q"];
-	[menuItem
-		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
-
-	FinishSubMenu(appleMenu, mainMenu, sAppName);
-
-	[appleMenu release];
-}
-
-/* Create File menu */
-LOCALPROC setupFileMenu(NSMenu *mainMenu)
-{
-	NSMenu *fileMenu;
-	NSMenuItem *menuItem;
-	NSString *sFile =
-		NSStringCreateFromSubstCStr(kStrMenuFile);
-	NSString *sOpen =
-		NSStringCreateFromSubstCStr(kStrMenuItemOpen ";ll");
-
-	fileMenu = [[NSMenu alloc] initWithTitle: sFile];
-
-	menuItem = [fileMenu
-		addItemWithTitle: sOpen
-		action: @selector(performFileOpen:)
-		keyEquivalent: @"o"];
-	[menuItem
-		setKeyEquivalentModifierMask: NSEventModifierFlagControl];
-
-	FinishSubMenu(fileMenu, mainMenu, sFile);
-
-	[fileMenu release];
-}
-
-/* Create Special menu */
-LOCALPROC setupSpecialMenu(NSMenu *mainMenu)
-{
-	NSMenu *specialMenu;
-	NSString *sSpecial =
-		NSStringCreateFromSubstCStr(kStrMenuSpecial);
-	NSString *sMore =
-		NSStringCreateFromSubstCStr(kStrMenuItemMore ";ll");
-
-	specialMenu = [[NSMenu alloc] initWithTitle: sSpecial];
-
-	[specialMenu
-		addItemWithTitle: sMore
-		action: @selector(performSpecialMoreCommands:)
-		keyEquivalent: @""];
-
-	FinishSubMenu(specialMenu, mainMenu, sSpecial);
-
-	[specialMenu release];
-}
-
+/*
+	The menu bar is built in Swift, in APPMENUS.swift. What used to
+	be here was a three item stub — application, File with one Open
+	item, and Special whose only entry dropped into the character
+	cell overlay — because almost every command lived in that overlay
+	rather than in the menu bar.
+*/
 LOCALPROC MyMenuSetup(void)
 {
-	NSMenu *mainMenu = [[NSMenu alloc] init];
-
-	setApplicationMenu(mainMenu);
-
-	setupFileMenu(mainMenu);
-	setupSpecialMenu(mainMenu);
-
-	[NSApp setMainMenu: mainMenu];
-
-	[mainMenu release];
+	[MNVMMenuController installMainMenu];
 }
 
 
@@ -2606,30 +2765,24 @@ LOCALPROC MyMenuSetup(void)
 LOCALPROC HaveChangedScreenBuff(ui4r top, ui4r left,
 	ui4r bottom, ui4r right)
 {
-#if 0
-	if ([MyNSview lockFocusIfCanDraw])
 	/*
-		when compiled with XCode 11.4.1,
-		running in macOS 10.15, this causes
-		drawRect to later be called for
-		entire window.
-	*/
-#endif
-	if ([MyNSview canDraw])
-	{
-		MyDrawWithOpenGL(top, left, bottom, right);
-#if 0
-		[MyNSview unlockFocus];
-#endif
-	}
+		This used to be gated on [MyNSview canDraw], which was
+		right for a view that drew through drawRect but is wrong
+		for a layer hosting Metal view, and is deprecated as of
+		macOS 10.14 for exactly that reason.
 
-/*
-	would make sense to instead call:
-		[MyNSview setNeedsDisplayInRect:rectangle];
-	but that doesn't work either when
-		compiled with XCode 11.4.1. drawRect
-		seems to think entire view is dirty.
-*/
+		canDraw answers NO while the window is not yet visible or
+		is occluded. Since Metal presents through the layer rather
+		than through AppKit's drawing machinery, that gate simply
+		dropped frames: the window stayed black whenever drawing
+		began before it came to the front, and drew correctly
+		whenever it happened to be frontmost first. The symptom was
+		intermittent, which is what made it worth a comment.
+
+		MyDrawWithMetal already declines to draw when there is no
+		renderer, so no further check is needed here.
+	*/
+	MyDrawWithMetal(top, left, bottom, right);
 }
 
 LOCALPROC MyDrawChangesAndClear(void)
@@ -2673,20 +2826,77 @@ LOCALPROC DisconnectKeyCodes3(void)
 
 /* --- basic dialogs --- */
 
+/*
+	Presents a pending MacMsg natively.
+
+	MacMsg itself is unchanged: it parks the strings in
+	SavedBriefMsg and SavedLongMsg and sets SavedFatalMsg, so none of
+	its callers across the emulator need to know anything about how
+	the message is shown. Only the presentation moves here, from
+	NSRunAlertPanel, deprecated since macOS 10.10, to NSAlert.
+
+	This must run on the main thread, which it now does: the display
+	link handler drives CheckForSavedTasks, and UnInitOSGLU runs on
+	the main thread too.
+
+	runModal spins a nested run loop, so the display link keeps
+	firing and re-enters CheckForSavedTasks while the alert is up.
+	The guard below stops that turning into a stack of alerts. The
+	emulator thread meanwhile blocks on the emulator lock, which the
+	frame driver is holding, so emulation pauses while the message is
+	on screen. That is the wanted behaviour, and it is what the drawn
+	overlay effectively did too.
+*/
+
+LOCALVAR blnr PresentingMacMsg = falseblnr;
+
 LOCALPROC CheckSavedMacMsg(void)
 {
-	if (nullpr != SavedBriefMsg) {
+	if ((nullpr != SavedBriefMsg) && ! PresentingMacMsg) {
+		blnr fatal = SavedFatalMsg;
 		NSString *briefMsg0 =
 			NSStringCreateFromSubstCStr(SavedBriefMsg);
 		NSString *longMsg0 =
 			NSStringCreateFromSubstCStr(SavedLongMsg);
-		NSString *quitMsg0 =
-			NSStringCreateFromSubstCStr(kStrCmdQuit);
 
-		(void) NSRunAlertPanel(briefMsg0, @"%@", quitMsg0, nil, nil,
-			longMsg0);
+		PresentingMacMsg = trueblnr;
+
+		{
+			NSAlert *alert = [[NSAlert alloc] init];
+
+			[alert setAlertStyle: fatal
+				? NSAlertStyleCritical
+				: NSAlertStyleWarning];
+			[alert setMessageText: briefMsg0];
+			[alert setInformativeText: longMsg0];
+
+			if (fatal) {
+				/*
+					Nothing can be done but leave, so the only
+					button says so, using the emulator's own
+					localised string for it.
+				*/
+				[alert addButtonWithTitle:
+					NSStringCreateFromSubstCStr(kStrCmdQuit)];
+			}
+			/*
+				For a non fatal message no button is added, so
+				NSAlert supplies its own default, which AppKit
+				localises. The emulator's string table has no
+				"continue" of its own to use here.
+			*/
+
+			(void) [alert runModal];
+
+			[alert release];
+		}
 
 		SavedBriefMsg = nullpr;
+		PresentingMacMsg = falseblnr;
+
+		if (fatal) {
+			ForceMacOff = trueblnr;
+		}
 	}
 }
 
@@ -2739,7 +2949,7 @@ LOCALPROC InsertADisk0(void)
 
 	MyBeginDialog();
 
-	if (NSOKButton == [panel runModal]) {
+	if (NSModalResponseOK == [panel runModal]) {
 		int i;
 		NSArray *a = [panel URLs];
 		int n = [a count];
@@ -2796,114 +3006,66 @@ LOCALPROC UngrabMachine(void)
 }
 #endif
 
-LOCALPROC MyAdjustGLforSize(int h, int v)
+/*
+	Resizes the drawable. The magnification factor does not appear
+	here: an integral magnify simply makes the view larger, and the
+	nearest neighbour sampler then reproduces each guest pixel as an
+	exact block. The backing scale factor is passed through so that
+	the result stays pixel exact on a Retina display, which the
+	OpenGL path gave up on by asking for a non best resolution
+	surface.
+*/
+LOCALPROC MyAdjustRendererForSize(int h, int v)
 {
-	[MyNSOpnGLCntxt makeCurrentContext];
+	double backingScale = 1.0;
 
-	glClearColor (0.0, 0.0, 0.0, 1.0);
-
-#if 1
-	glViewport(0, 0, h, v);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, h, 0, v, -1.0, 1.0);
-	glMatrixMode(GL_MODELVIEW);
-#endif
-
-	glColor3f(0.0, 0.0, 0.0);
-#if EnableMagnify
-	if (UseMagnify) {
-		glPixelZoom(MyWindowScale, - MyWindowScale);
-	} else
-#endif
-	{
-		glPixelZoom(1, -1);
+	if (nil != MyWindow) {
+		backingScale = [MyWindow backingScaleFactor];
 	}
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, vMacScreenWidth);
 
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	[NSOpenGLContext clearCurrentContext];
+	MTLRenderer_Resize(h, v, backingScale);
 
 	ScreenChangedAll();
 }
 
 LOCALVAR blnr WantScreensChangedCheck = falseblnr;
 
-LOCALPROC MyUpdateOpenGLContext(void)
+LOCALPROC MyUpdateRendererGeometry(void)
 {
-	if (nil != MyNSOpnGLCntxt) {
-		[MyNSOpnGLCntxt makeCurrentContext];
-		[MyNSOpnGLCntxt update];
+	if (HaveRenderer && (nil != MyNSview)) {
+		NSRect r = [MyNSview frame];
+
+		MyAdjustRendererForSize(r.size.width, r.size.height);
 	}
 }
 
-LOCALPROC CloseMyOpenGLContext(void)
+LOCALPROC MyCloseRenderer(void)
 {
-	if (nil != MyNSOpnGLCntxt) {
-
-		[NSOpenGLContext clearCurrentContext];
-		/*
-			Only because MyDrawWithOpenGL doesn't
-			bother to do this. No one
-			uses the current context
-			without settting it first.
-		*/
+	if (HaveRenderer) {
+		MTLRenderer_UnInit();
+		HaveRenderer = falseblnr;
 	}
 }
 
-LOCALFUNC blnr GetOpnGLCntxt(void)
+LOCALFUNC blnr MyGetRenderer(void)
 {
 	blnr v = falseblnr;
 
-	if (nil == MyNSOpnGLCntxt) {
+	if (! HaveRenderer) {
 		NSRect NewWinRect = [MyNSview frame];
-		NSOpenGLPixelFormat *fmt;
 
-#if WantGraphicsSwitching
+		if (! MTLRenderer_Init(MyNSview,
+			vMacScreenWidth, vMacScreenHeight))
 		{
-			NSOpenGLPixelFormatAttribute attr0[] = {
-				NSOpenGLPFAAllowOfflineRenderers,
-				0};
-
-			fmt =
-				[[NSOpenGLPixelFormat alloc] initWithAttributes:attr0];
-		}
-		if (nil != fmt) {
-			/* ok */
-		} else
-#endif
-		{
-			NSOpenGLPixelFormatAttribute attr[] = {
-				0};
-
-			fmt = [[NSOpenGLPixelFormat alloc] initWithAttributes:attr];
-			if (nil == fmt) {
 #if dbglog_HAVE
-				dbglog_writeln("Could not create fmt");
-#endif
-				goto label_exit;
-			}
-		}
-
-		MyNSOpnGLCntxt = [[NSOpenGLContext alloc]
-			initWithFormat:fmt shareContext:nil];
-
-		[fmt release];
-
-		if (nil == MyNSOpnGLCntxt) {
-#if dbglog_HAVE
-			dbglog_writeln("Could not create MyNSOpnGLCntxt");
+			dbglog_writeln("Could not init Metal renderer");
 #endif
 			goto label_exit;
 		}
 
-		/* fprintf(stderr, "%s\n", "Got OpenGL context"); */
+		HaveRenderer = trueblnr;
 
-		[MyNSOpnGLCntxt setView: MyNSview];
-		[MyNSOpnGLCntxt update];
-
-		MyAdjustGLforSize(NewWinRect.size.width,
+		MyAdjustRendererForSize(NewWinRect.size.width,
 			NewWinRect.size.height);
 
 #if 0 != vMacScreenDepth
@@ -3073,13 +3235,13 @@ label_exit:
 		And if create after then our content won't
 		be drawn initially, resulting in flicker.
 	*/
-	if (GetOpnGLCntxt()) {
-		MyDrawWithOpenGL(0, 0, vMacScreenHeight, vMacScreenWidth);
+	if (MyGetRenderer()) {
+		MyDrawWithMetal(0, 0, vMacScreenHeight, vMacScreenWidth);
 
 		/*
 			since drawRect is called very rarely, didn't
 			bother above to calculate actual coordinates
-			to pass to MyDrawWithOpenGL.
+			to pass to MyDrawWithMetal.
 
 			if it did matter, could get list of dirty
 			rectangles, instead of dirtyRect that is
@@ -3093,7 +3255,7 @@ label_exit:
 
 			[self getRectsBeingDrawn:&rectList count:&count];
 			for (i = 0; i < count; i++) {
-				MyDrawWithOpenGL(<converted> rectList[i]);
+				MyDrawWithMetal(<converted> rectList[i]);
 			}
 		}
 #endif
@@ -3123,11 +3285,18 @@ LOCALPROC CloseMainWindow(void)
 		MyNSview = nil;
 	}
 
+	/*
+		The renderer is deliberately not torn down here.
+		ReCreateMainWindow disposes of the old window by restoring
+		the old state, calling this, and then restoring the new
+		state, so at this point the live renderer already belongs
+		to the newly created view. Tearing it down here would
+		destroy the new renderer rather than the old one, leaving a
+		blank screen after a magnify or full screen toggle.
 
-	if (nil != MyNSOpnGLCntxt) {
-		[MyNSOpnGLCntxt release];
-		MyNSOpnGLCntxt = nil;
-	}
+		Teardown is therefore explicit: before recreation in
+		ReCreateMainWindow, and at shutdown in UnInitCocoaStuff.
+	*/
 }
 
 LOCALPROC QZ_SetCaption(void)
@@ -3353,8 +3522,6 @@ LOCALFUNC blnr CreateMainWindow(void)
 		instead of NO when the NSHighResolutionCapable boolean
 		is set in Info.plist."
 	*/
-	[MyNSview setWantsBestResolutionOpenGLSurface:NO];
-
 	[MyWindow setContentView: MyNSview];
 
 	[MyWindow makeKeyAndOrderFront: nil];
@@ -3363,9 +3530,9 @@ LOCALFUNC blnr CreateMainWindow(void)
 		just in case drawRect didn't get called
 		during makeKeyAndOrderFront
 	*/
-	if (! GetOpnGLCntxt()) {
+	if (! MyGetRenderer()) {
 #if dbglog_HAVE
-		dbglog_writeln("Could not GetOpnGLCntxt");
+		dbglog_writeln("Could not MyGetRenderer");
 #endif
 		goto label_exit;
 	}
@@ -3384,7 +3551,6 @@ LOCALPROC ZapMyWState(void)
 	MyWindow = nil;
 	MyNSview = nil;
 	MyWinDelegate = nil;
-	MyNSOpnGLCntxt = nil;
 }
 #endif
 
@@ -3410,7 +3576,6 @@ struct MyWState {
 	NSWindow *f_MyWindow;
 	NSView *f_MyNSview;
 	MyClassWindowDelegate *f_MyWinDelegate;
-	NSOpenGLContext *f_MyNSOpnGLCntxt;
 	short f_GLhOffset;
 	short f_GLvOffset;
 };
@@ -3440,7 +3605,6 @@ LOCALPROC GetMyWState(MyWState *r)
 	r->f_MyWindow = MyWindow;
 	r->f_MyNSview = MyNSview;
 	r->f_MyWinDelegate = MyWinDelegate;
-	r->f_MyNSOpnGLCntxt = MyNSOpnGLCntxt;
 	r->f_GLhOffset = GLhOffset;
 	r->f_GLvOffset = GLvOffset;
 }
@@ -3469,7 +3633,6 @@ LOCALPROC SetMyWState(MyWState *r)
 	MyWindow = r->f_MyWindow;
 	MyNSview = r->f_MyNSview;
 	MyWinDelegate = r->f_MyWinDelegate;
-	MyNSOpnGLCntxt = r->f_MyNSOpnGLCntxt;
 	GLhOffset = r->f_GLhOffset;
 	GLvOffset = r->f_GLvOffset;
 }
@@ -3502,7 +3665,7 @@ LOCALPROC ReCreateMainWindow(void)
 	}
 #endif
 
-	CloseMyOpenGLContext();
+	MyCloseRenderer();
 
 	GetMyWState(&old_state);
 
@@ -3518,6 +3681,13 @@ LOCALPROC ReCreateMainWindow(void)
 	if (! CreateMainWindow()) {
 		CloseMainWindow();
 		SetMyWState(&old_state);
+
+		/*
+			The renderer was torn down above in anticipation of a
+			new view. Since the new window could not be made, it
+			has to be re-attached to the restored old view.
+		*/
+		(void) MyGetRenderer();
 
 #if VarFullScreen
 		if (UseFullScreen) {
@@ -3701,7 +3871,7 @@ LOCALFUNC blnr FindOrMakeNamedChildDirPath(NSString *parentPath,
 LOCALPROC MakeNewDisk(ui5b L, NSString *drivename)
 {
 #if SaveDialogEnable
-	NSInteger result = NSCancelButton;
+	NSInteger result = NSModalResponseCancel;
 	NSSavePanel *panel = [NSSavePanel savePanel];
 
 	MyBeginDialog();
@@ -3712,7 +3882,7 @@ LOCALPROC MakeNewDisk(ui5b L, NSString *drivename)
 
 	MyEndDialog();
 
-	if (NSOKButton == result) {
+	if (NSModalResponseOK == result) {
 		NSString* filePath = [[panel URL] path];
 		MakeNewDisk0(L, filePath);
 	}
@@ -3790,7 +3960,7 @@ LOCALPROC CheckForSavedTasks(void)
 	if (WantScreensChangedCheck) {
 		WantScreensChangedCheck = falseblnr;
 
-		MyUpdateOpenGLContext();
+		MyUpdateRendererGeometry();
 
 #if VarFullScreen
 		/*
@@ -3822,9 +3992,15 @@ LOCALPROC CheckForSavedTasks(void)
 		}
 	}
 
-	if ((nullpr != SavedBriefMsg) & ! MacMsgDisplayed) {
-		MacMsgDisplayOn();
-	}
+	/*
+		Messages are presented as a native alert rather than by
+		entering the overlay's message special mode. This is what
+		lets the drawn overlay go: SpclModeMessage and SpclModeNoRom
+		are the two non overlay users of the special mode
+		framebuffer indirection in GetCurDrawBuff, and this removes
+		the first of them.
+	*/
+	CheckSavedMacMsg();
 
 #if EnableRecreateW
 	if (0
@@ -3963,9 +4139,9 @@ LOCALPROC ProcessEventLocation(NSEvent *event)
 
 	if (w != MyWindow) {
 		if (nil != w) {
-			p = [w convertBaseToScreen: p];
+			p = [w convertPointToScreen: p];
 		}
-		p = [MyWindow convertScreenToBase: p];
+		p = [MyWindow convertPointFromScreen: p];
 	}
 	p = [MyNSview convertPoint: p fromView: nil];
 	p.y = [MyNSview frame].size.height - p.y;
@@ -3980,8 +4156,21 @@ LOCALPROC ProcessKeyEvent(blnr down, NSEvent *event)
 	Keyboard_UpdateKeyMap2(Keyboard_RemapMac(scancode), down);
 }
 
-LOCALPROC ProcessOneSystemEvent(NSEvent *event)
+/*
+	Handles one event, returning whether the emulator consumed it.
+
+	Previously this was driven by the hand written event pump in
+	WaitForNextTick and passed unwanted events on with
+	[NSApp sendEvent:]. It is now called from MyClassApplication's
+	sendEvent: override on the main thread, so declining an event is
+	expressed by returning false and letting NSApplication have it.
+
+	The caller holds the emulator lock.
+*/
+LOCALFUNC blnr ProcessOneSystemEvent(NSEvent *event)
 {
+	blnr consumed = trueblnr;
+
 	switch ([event type]) {
 		case NSEventTypeLeftMouseDown:
 		case NSEventTypeRightMouseDown:
@@ -4006,7 +4195,7 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 				MyMouseButtonSet(trueblnr);
 			} else {
 				/* doesn't belong to us */
-				[NSApp sendEvent: event];
+				consumed = falseblnr;
 			}
 			break;
 
@@ -4021,7 +4210,7 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 			ProcessEventModifiers(event);
 			if (! MyMouseButtonState) {
 				/* doesn't belong to us */
-				[NSApp sendEvent: event];
+				consumed = falseblnr;
 			} else {
 				MyMouseButtonSet(falseblnr);
 			}
@@ -4038,7 +4227,7 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 		case NSEventTypeOtherMouseDragged:
 			if (! MyMouseButtonState) {
 				/* doesn't belong to us ? */
-				[NSApp sendEvent: event];
+				consumed = falseblnr;
 			} else {
 				ProcessEventLocation(event);
 				ProcessEventModifiers(event);
@@ -4060,42 +4249,102 @@ LOCALPROC ProcessOneSystemEvent(NSEvent *event)
 		/* case NSPeriodic: */
 		/* case NSCursorUpdate: */
 		default:
-			[NSApp sendEvent: event];
+			consumed = falseblnr;
 	}
+
+	return consumed;
+}
+
+/*
+	NSApplication subclass so that events reach the emulator on the
+	main thread through the ordinary AppKit path, instead of being
+	pulled out of the queue by a loop of our own.
+*/
+
+@interface MyClassApplication : NSApplication
+@end
+
+@implementation MyClassApplication
+
+- (void)sendEvent:(NSEvent *)event
+{
+	blnr consumed;
+
+	/*
+		Menu key equivalents have to be offered before the emulator
+		sees the event, because ProcessOneSystemEvent consumes every
+		key down and NSApplication would otherwise never get the
+		chance to match one.
+
+		Only Control combinations are offered. That is not a
+		shortcut taken for convenience: the emulated Macintosh must
+		receive every Command keystroke, so Command must never be
+		matched against the host menu bar, however tempting it is to
+		just hand the event to performKeyEquivalent: unconditionally.
+
+		If no menu item matches a Control combination, the event
+		still falls through to the guest, so Control chords the host
+		does not claim are not swallowed.
+	*/
+	if (NSEventTypeKeyDown == [event type]) {
+		if (0 != ([event modifierFlags] & NSEventModifierFlagControl)) {
+			if ([[self mainMenu] performKeyEquivalent: event]) {
+				return;
+			}
+		}
+	}
+
+	EmuLock_Acquire();
+	consumed = ProcessOneSystemEvent(event);
+	EmuLock_Release();
+
+	if (! consumed) {
+		[super sendEvent: event];
+	}
+}
+
+@end
+
+/*
+	Paces the emulator to the next tick.
+
+	This used to do two jobs: pump AppKit events and pace. It now
+	only paces. Events are delivered by AppKit on the main thread,
+	and the host housekeeping that CheckForSavedTasks performs also
+	runs on the main thread, because it touches AppKit.
+
+	The emulator lock is released while sleeping, which is most of
+	every tick at ordinary speeds, and that is when the main thread
+	gets to run. At "all out" speed there is no sleep, so the lock
+	has to be yielded explicitly or the interface would stop
+	responding.
+
+	Reached from WaitForRom during startup as well, which runs on the
+	main thread before the emulator thread exists, hence the
+	EmuThread_IsCurrent guard around every lock operation.
+*/
+
+LOCALPROC MySleepSeconds(double seconds)
+{
+	struct timespec rqt;
+	struct timespec rmt;
+
+	if (seconds <= 0.0) {
+		return;
+	}
+
+	rqt.tv_sec = (time_t)seconds;
+	rqt.tv_nsec = (long)((seconds - (double)rqt.tv_sec) * 1000000000.0);
+
+	(void) nanosleep(&rqt, &rmt);
 }
 
 GLOBALOSGLUPROC WaitForNextTick(void)
 {
-	NSDate *TheUntil;
-	int i;
-	NSEvent *event;
-	NSAutoreleasePool *pool;
-
-	pool = [[NSAutoreleasePool alloc] init];
-
-	NSDate *TheDistantFuture = [NSDate distantFuture];
-	NSDate *TheDistantPast = [NSDate distantPast];
-#if 0
-	NSDate *TheNextTick = [NSDate
-		dateWithTimeIntervalSinceReferenceDate: NextTickChangeTime];
-#endif
-
-	TheUntil = TheDistantPast;
+	blnr onEmuThread = EmuThread_IsCurrent();
+	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
 label_retry:
-
-	i = 32;
-	while ((--i >= 0) && (nil != (event =
-		[NSApp nextEventMatchingMask: NSEventMaskAny
-			untilDate: TheUntil
-			inMode: NSDefaultRunLoopMode
-			dequeue: YES])))
-	{
-		ProcessOneSystemEvent(event);
-		TheUntil = TheDistantPast;
-	}
-
-	CheckForSavedTasks();
 
 	if (ForceMacOff) {
 		goto label_exit;
@@ -4103,49 +4352,44 @@ label_retry:
 
 	if (CurSpeedStopped) {
 		DoneWithDrawingForTick();
-		TheUntil = TheDistantFuture;
+
+		/*
+			Nothing to compute while stopped. The old code blocked
+			on the event queue until something arrived; now it
+			simply idles, leaving the lock free so the main thread
+			can act on whatever the user does next.
+		*/
+		if (onEmuThread) {
+			EmuLock_Release();
+			MySleepSeconds(0.010);
+			EmuLock_Acquire();
+		} else {
+			MySleepSeconds(0.010);
+		}
 		goto label_retry;
 	}
 
 	if (ExtraTimeNotOver()) {
-#if 1
-#if 0 && EnableAutoSlow
-		if ((QuietSubTicks >= 16384)
-			&& (QuietTime >= 34)
-			&& ! WantNotAutoSlow)
-		{
-			TheUntil = [NSDate
-				dateWithTimeIntervalSinceReferenceDate:
-					(NextTickChangeTime + 0.50)];
-		} else
-#endif
-		{
-			NSTimeInterval inTimeout =
-				NextTickChangeTime - LatestTime;
-			if (inTimeout > 0.0) {
-				struct timespec rqt;
-				struct timespec rmt;
+		double inTimeout = NextTickChangeTime - LatestTime;
 
-				rqt.tv_sec = 0;
-				rqt.tv_nsec = inTimeout * 1000000000.0;
-				(void) nanosleep(&rqt, &rmt);
+		if (inTimeout > 0.0) {
+			if (onEmuThread) {
+				EmuLock_Release();
+				MySleepSeconds(inTimeout);
+				EmuLock_Acquire();
+			} else {
+				MySleepSeconds(inTimeout);
 			}
-			TheUntil = TheDistantPast;
+		} else if (onEmuThread) {
+			/*
+				Behind schedule, or running all out. There is no
+				sleep to hide behind, so hand the lock over
+				briefly on purpose.
+			*/
+			EmuLock_Yield();
 		}
-#else
-		/*
-			This has higher overhead.
-		*/
-		TheUntil = TheNextTick;
-#endif
 		goto label_retry;
 	}
-
-#if 0
-	if (! gTrueBackgroundFlag) {
-		CheckMouseState();
-	}
-#endif
 
 	if (CheckDateTime()) {
 #if MySoundEnabled
@@ -4232,6 +4476,29 @@ LOCALFUNC blnr setupWorkingDirectory(void)
 	WantScreensChangedCheck = trueblnr;
 }
 
+/*
+	Quit has to go through the emulator rather than around it, or the
+	loop would be killed mid tick and UnInitOSGLU would never run.
+	So a quit request asks the emulator to stop and cancels the
+	termination; the emulator thread then stops the run loop once it
+	has actually left, and main unwinds and cleans up.
+*/
+- (NSApplicationTerminateReply)applicationShouldTerminate:
+	(NSApplication *)sender
+{
+	(void) sender;
+
+	if (EmuThread_HasFinished()) {
+		return NSTerminateNow;
+	}
+
+	EmuLock_Acquire();
+	(void) EmuThread_RequestStop();
+	EmuLock_Release();
+
+	return NSTerminateCancel;
+}
+
 - (IBAction)performSpecialMoreCommands:(id)sender
 {
 	DoMoreCommandsMsg();
@@ -4249,11 +4516,85 @@ LOCALFUNC blnr setupWorkingDirectory(void)
 
 @end
 
+/*
+	Drives the host side of each frame from the main thread: the
+	housekeeping that CheckForSavedTasks performs, which touches
+	AppKit and so cannot run on the emulator thread, and then
+	presentation of whatever frame the emulator has converted.
+
+	A display link is used rather than a timer so that presentation
+	is aligned to the refresh the window is actually on.
+*/
+
+@interface MyClassFrameDriver : NSObject
+- (void)frameTick:(id)sender;
+@end
+
+@implementation MyClassFrameDriver
+
+- (void)frameTick:(id)sender
+{
+	(void) sender;
+
+	EmuLock_Acquire();
+
+	CheckForSavedTasks();
+	MyPresentPendingFrame();
+
+	EmuLock_Release();
+}
+
+@end
+
+LOCALVAR MyClassFrameDriver *MyFrameDriver = nil;
+LOCALVAR CADisplayLink *MyFrameLink = nil;
+
+LOCALFUNC blnr MyStartFrameDriver(void)
+{
+	if (nil != MyFrameLink) {
+		return trueblnr;
+	}
+
+	MyFrameDriver = [[MyClassFrameDriver alloc] init];
+
+	/*
+		Taken from the screen rather than the view, so that it
+		survives the window being recreated on a magnify or full
+		screen toggle.
+	*/
+	MyFrameLink = [[[NSScreen mainScreen]
+		displayLinkWithTarget: MyFrameDriver
+		selector: @selector(frameTick:)] retain];
+
+	if (nil == MyFrameLink) {
+		NSLog(@"could not create display link");
+		return falseblnr;
+	}
+
+	[MyFrameLink addToRunLoop: [NSRunLoop mainRunLoop]
+		forMode: NSRunLoopCommonModes];
+
+	return trueblnr;
+}
+
+LOCALPROC MyStopFrameDriver(void)
+{
+	if (nil != MyFrameLink) {
+		[MyFrameLink invalidate];
+		[MyFrameLink release];
+		MyFrameLink = nil;
+	}
+	if (nil != MyFrameDriver) {
+		[MyFrameDriver release];
+		MyFrameDriver = nil;
+	}
+}
+
 LOCALVAR MyClassApplicationDelegate *MyApplicationDelegate = nil;
 
 LOCALFUNC blnr InitCocoaStuff(void)
 {
-	NSApplication *MyNSApp = [NSApplication sharedApplication];
+	NSApplication *MyNSApp = [MyClassApplication sharedApplication];
 		/*
 			in Xcode 6.2, MyNSApp isn't the same as NSApp,
 			breaks NSApp setDelegate
@@ -4463,7 +4804,7 @@ LOCALPROC UnInitOSGLU(void)
 
 	CheckSavedMacMsg();
 
-	CloseMyOpenGLContext();
+	MyCloseRenderer();
 	CloseMainWindow();
 
 #if MayFullScreen
@@ -4479,11 +4820,26 @@ LOCALPROC UnInitOSGLU(void)
 
 int main(int argc, char **argv)
 {
+	(void) argc;
+	(void) argv;
+
 	ZapOSGLUVars();
 
 	if (InitOSGLU()) {
-		ProgramMain();
+		if (MyStartFrameDriver())
+		if (EmuThread_Start())
+		{
+			/*
+				The main thread now belongs to AppKit for the rest
+				of the run. The emulator loop, which used to live
+				here, runs on its own thread.
+			*/
+			[NSApp run];
+		}
 	}
+
+	EmuThread_Stop();
+	MyStopFrameDriver();
 	UnInitOSGLU();
 
 	return 0;

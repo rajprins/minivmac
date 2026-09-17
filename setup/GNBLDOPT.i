@@ -27,6 +27,22 @@
 #define UseOpenGLinOSX 0
 #endif
 
+#ifndef UseMetalinOSX
+#define UseMetalinOSX 0
+#endif
+
+#ifndef HaveSwiftSrcFiles
+#define HaveSwiftSrcFiles 0
+#endif
+
+#ifndef kSwiftBridgeHeaderName
+#define kSwiftBridgeHeaderName "CCOBRIDG.h"
+#endif
+
+#ifndef kSwiftIfaceHeaderName
+#define kSwiftIfaceHeaderName "minivmac-Swift.h"
+#endif
+
 #ifndef UseMachinOSX
 #define UseMachinOSX 0
 #endif

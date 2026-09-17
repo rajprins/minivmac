@@ -3,13 +3,16 @@
 /setup_t
 /setup.sh
 /Makefile
-/minivmac
-/minivmac.app
-/minivmac.xcodeproj
+/moof
+/moof.app
+/moof.xcodeproj
+/moof.swiftmodule
 /build
 /setuptool
 /makefilegen
 /*.exe
+/*.dsk
+/*.img
 /*.ROM
 remove*
 
