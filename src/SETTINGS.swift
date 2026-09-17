@@ -1,7 +1,7 @@
 /*
 	SETTINGS.swift
 
-	Copyright (C) 2026 Mini vMac contributors
+	Copyright (C) 2026 Moof contributors
 
 	You can redistribute this file and/or modify it under the terms
 	of version 2 of the GNU General Public License as published by

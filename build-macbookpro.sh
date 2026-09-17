@@ -12,7 +12,7 @@
 rm -rf ./bld
 rm -rf ./cfg
 rm -rf ./Makefile
-rm -rf ./minivmac*
+rm -rf ./moof*
 rm -rf ./build
 rm setuptool
 rm makefilegen
@@ -27,7 +27,7 @@ fi
 
 echo "Running setup tool to generate makefile generator..."
 ./setuptool \
-        -n "minivmac-3.8" \
+        -n "moof-3.8" \
         -e xcd \
         -t mcar \
         -m II \

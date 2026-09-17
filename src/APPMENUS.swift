@@ -1,7 +1,7 @@
 /*
 	APPMENUS.swift
 
-	Copyright (C) 2026 Mini vMac contributors
+	Copyright (C) 2026 Moof contributors
 
 	You can redistribute this file and/or modify it under the terms
 	of version 2 of the GNU General Public License as published by
@@ -44,6 +44,17 @@ final class MenuController: NSObject, NSMenuItemValidation {
 	@objc static let shared = MenuController()
 
 	private var bridge: EmulatorBridge { EmulatorBridge.shared }
+
+	/*
+		Taken from the bundle rather than written here, so that the
+		application name lives in exactly one place: the generator
+		puts kStrAppName into Info.plist, and everything else reads
+		it back.
+	*/
+	private var appName: String {
+		Bundle.main.object(forInfoDictionaryKey: "CFBundleName")
+			as? String ?? "Moof"
+	}
 
 	private override init() {
 		super.init()
@@ -98,15 +109,15 @@ final class MenuController: NSObject, NSMenuItemValidation {
 			macOS substitutes the real application name for the first
 			menu's title, so what is passed here does not show.
 		*/
-		return submenu("Mini vMac") { menu in
-			add(menu, "About Mini vMac",
+		return submenu(appName) { menu in
+			add(menu, "About \(appName)",
 				#selector(showAbout(_:)))
 			menu.addItem(.separator())
 			add(menu, "Settings…",
 				#selector(showSettings(_:)), key: ",")
 			menu.addItem(.separator())
 
-			let hide = NSMenuItem(title: "Hide Mini vMac",
+			let hide = NSMenuItem(title: "Hide \(appName)",
 				action: #selector(NSApplication.hide(_:)),
 				keyEquivalent: "")
 			menu.addItem(hide)
@@ -123,7 +134,7 @@ final class MenuController: NSObject, NSMenuItemValidation {
 
 			menu.addItem(.separator())
 
-			let quit = NSMenuItem(title: "Quit Mini vMac",
+			let quit = NSMenuItem(title: "Quit \(appName)",
 				action: #selector(NSApplication.terminate(_:)),
 				keyEquivalent: "q")
 			quit.keyEquivalentModifierMask = .control

@@ -18,17 +18,17 @@
 */
 
 
-#define kStrAppName "Mini vMac"
-#define kStrAppAbbrev "minivmac" /* [a-z0-9_]{1,8} */
+#define kStrAppName "Moof"
+#define kStrAppAbbrev "moof" /* [a-z0-9_]{1,8} */
 #define MajorVersion 37
 #define MinorVersion 03
 #define kStrCopyrightYear "2020"
-#define kMacCreatorSig "MnvM"
-#define kBundleIdentifier "com.gryphel.minivmac"
+#define kMacCreatorSig "MOOF"
+#define kBundleIdentifier "io.github.rajprins.moof"
 #define kShortDescription "miniature Macintosh emulator"
 
 #define kMaintainerName "Paul C. Pratt"
-#define kStrHomePage "https://www.gryphel.com/"
+#define kStrHomePage "https://github.com/rajprins/minivmac"
 
 #define Have_SPBLDOPT 1
 #define Have_SPCNFGGL 1
@@ -52,4 +52,9 @@
 	sources import to see the Swift side.
 */
 #define kSwiftBridgeHeaderName "CCOBRIDG.h"
-#define kSwiftIfaceHeaderName "minivmac-Swift.h"
+/*
+	Fixed rather than derived from the application name, so that the
+	#import in the Objective-C sources survives a rename. The module
+	name still follows kStrAppAbbrev; only this header is pinned.
+*/
+#define kSwiftIfaceHeaderName "EmuBridge-Swift.h"

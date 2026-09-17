@@ -1,7 +1,7 @@
 /*
 	ABOUTPNL.swift
 
-	Copyright (C) 2026 Mini vMac contributors
+	Copyright (C) 2026 Moof contributors
 
 	You can redistribute this file and/or modify it under the terms
 	of version 2 of the GNU General Public License as published by
@@ -30,10 +30,10 @@ import AppKit
 
 struct AboutView: View {
 
-	private var appName: String {
+	var appName: String {
 		Bundle.main.object(
 			forInfoDictionaryKey: "CFBundleName") as? String
-			?? "Mini vMac"
+			?? "Moof"
 	}
 
 	private var version: String {
@@ -91,7 +91,7 @@ final class AboutPanel: NSObject {
 			styleMask: [.titled, .closable],
 			backing: .buffered,
 			defer: false)
-		w.title = "About Mini vMac"
+		w.title = "About \(AboutView().appName)"
 		w.contentView = NSHostingView(rootView: AboutView())
 		w.isReleasedWhenClosed = false
 		w.center()

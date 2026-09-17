@@ -137,7 +137,7 @@ LOCALPROC dbglog_close0(void)
 #include "EMUCTLAP.h"
 #import "MTLRENDR.h"
 #import "EMUTHRED.h"
-#import "minivmac-Swift.h"
+#import "EmuBridge-Swift.h"
 
 /*
 	Implementation of the narrow C surface declared in EMUCTLAP.h.

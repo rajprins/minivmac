@@ -3,10 +3,10 @@
 /setup_t
 /setup.sh
 /Makefile
-/minivmac
-/minivmac.app
-/minivmac.xcodeproj
-/minivmac.swiftmodule
+/moof
+/moof.app
+/moof.xcodeproj
+/moof.swiftmodule
 /build
 /setuptool
 /makefilegen

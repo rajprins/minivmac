@@ -1,13 +1,21 @@
-# Mini vMac
+# Moof
 
-Mini vMac is a miniature Macintosh 68K emulator.  
-The original version of this software was written by Paul C. Pratt.
+Moof is a miniature Macintosh 68K emulator for Apple Silicon Macs.
 
-## Building Mini vMac
+It is a fork of [Mini vMac](https://www.gryphel.com/), originally
+written by Paul C. Pratt, reduced to a macOS-only build and rebuilt
+around a native host layer: Metal rendering, a real menu bar, a
+SwiftUI settings window, and the emulator running on its own thread
+under an ordinary AppKit run loop.
+
+The emulated machine is unchanged from Mini vMac; all of the work is
+in the host. The name is for Clarus the Dogcow.
+
+## Building Moof
 
 Use one of the build scripts in the top level of this repository as a starting point, editing the arguments to the setup tool as needed to customize the model and features of the Macintosh being emulated, and to specify the platform on which it is intended to run.
 
-By default, Mini vMac emulates a Macintosh Plus with a 512x342 monochrome display. Other 68K-based Mac models can be emulated by specifying a different model with the `-m` option. See the [Building Mini vMac page](https://minivmac.github.io/gryphel-mirror/c/minivmac/build.html) for details.
+By default, Moof emulates a Macintosh Plus with a 512x342 monochrome display. Other 68K-based Mac models can be emulated by specifying a different model with the `-m` option. See the [Building Mini vMac page](https://minivmac.github.io/gryphel-mirror/c/minivmac/build.html) for details.
 
 ### Building the Kanji (Japanese Mac Plus) variant
 The [recently discovered](https://web.archive.org/web/20250518175439/https://www.journaldulapin.com/2025/05/17/the-lost-japanese-rom-of-the-macintosh-plus-which-isnt-lost-anymore/) Japanese Mac Plus 256K ROM, which contains built-in KanjiTalk fonts for better performance, can now be used with Mini vMac. To emulate a Kanji model which can use this ROM, you can specify the new `-m Kanji` option in the setup tool. For example, this builds the Kanji variant for Apple Silicon, also enabling LocalTalk-over-UDP networking:

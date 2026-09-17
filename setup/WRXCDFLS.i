@@ -1119,7 +1119,11 @@ LOCALPROC WriteAPBXCDBuildSettings(void)
 			#import in the Objective-C sources is stable.
 		*/
 		WriteDestFileLn("CLANG_ENABLE_MODULES = YES;");
-		WriteDestFileLn("PRODUCT_MODULE_NAME = minivmac;");
+		WriteBgnDestFileLn();
+		WriteCStrToDestFile("PRODUCT_MODULE_NAME = ");
+		WriteStrAppAbbrev();
+		WriteCStrToDestFile(";");
+		WriteEndDestFileLn();
 		WriteBgnDestFileLn();
 		WriteCStrToDestFile("SWIFT_OBJC_BRIDGING_HEADER = \"");
 		WriteCStrToDestFile(src_d_name);
